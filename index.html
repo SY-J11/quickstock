@@ -1,39 +1,9 @@
-<!doctype html>
-<html lang="ko">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#101827">
-  <title>퀵스톡 | 종목 정보</title>
-  <link rel="stylesheet" href="style.css">
-</head>
-<body>
-  <header class="topbar">
-    <div class="brand"><span class="brand-mark">Q</span><div><strong>퀵스톡</strong><small>QUICK STOCK LOOKUP</small></div></div>
-    <span class="demo-badge">데모 화면</span>
-  </header>
-  <main class="wrap">
-    <section class="intro">
-      <p class="eyebrow">MY STOCK DASHBOARD</p>
-      <h1>종목 정보를<br><span>한 화면에서 빠르게</span></h1>
-      <p class="sub">현재가는 시세 공급원 연결 후 표시됩니다. 지금은 화면 구성을 확인하는 예시 모드입니다.</p>
-    </section>
-    <section class="search-panel">
-      <label for="stockSearch">종목명 또는 6자리 종목코드</label>
-      <div class="search-row">
-        <input id="stockSearch" type="search" placeholder="예: 삼성전자 또는 005930" autocomplete="off">
-        <button id="searchBtn">조회</button>
-      </div>
-      <div id="suggestions" class="suggestions" hidden></div>
-      <div class="quick-list" id="quickList"></div>
-    </section>
-    <section id="stockView" class="stock-view" aria-live="polite"></section>
-    <section class="notice">
-      <strong>데이터 연결 전 안내</strong>
-      <p>현재 숫자는 화면 테스트용 예시입니다. 실제 시세·재무·컨센서스 데이터가 아닙니다. 실제 데이터 연결 전에는 투자 판단에 사용하지 마세요.</p>
-    </section>
-    <footer>퀵스톡 · 개인용 종목 조회 웹앱 · 데이터 공급원 연결 전</footer>
-  </main>
-  <script src="app.js"></script>
-</body>
-</html>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f5f7fa"><title>종목 인사이트 프로</title><link rel="stylesheet" href="style.css"></head><body><div class="app"><header><div class="brand"><i></i><div><b>종목 인사이트</b><small>STOCK INSIGHT PRO</small></div></div><div class="tools"><button>⠿</button><button id="theme">◐</button><button id="refresh">↻</button><button>−</button></div></header><main>
+<section class="card quote"><div class="name"><div>삼성전자<small>005930</small></div><button id="fav">☆</button></div><div class="price">212,000 <span>▼ -6,000 (-2.75%)</span></div></section>
+<section class="grid g4"><div class="metric"><label>PER</label><b>9.49배</b></div><div class="metric"><label>PBR</label><b>2.46배</b></div><div class="metric"><label>EPS</label><b>22,292원</b></div><div class="metric"><label>시가총액</label><b>1,236조 4,800억</b></div></section>
+<section class="grid g3"><div class="metric"><label>지난해 영업이익</label><b>436,011억</b></div><div class="metric"><label>최근 4Q 영업이익</label><b>1,789,650억</b></div><div class="metric"><label>최근 4Q 영업이익률</label><b>84.2%</b></div></section>
+<section class="card eps"><label>최근 6분기 EPS</label><div class="epsrow"><div>2025.06<b>733원</b></div><div>2025.09<b>1,783원</b></div><div>2025.12<b>2,864원</b></div><div>2026.03<b>6,993원</b></div><div>2026.06<b>10,718원</b></div><div>2026.09(E)<b>13,504원</b></div></div></section>
+<section class="grid g3"><div class="metric"><label>최근 ROE</label><b>31.39</b></div><div class="metric"><label>부채비율</label><b>31.10</b></div><div class="metric"><label>외국인소진율</label><b>46.04%</b></div></section>
+<section class="grid g4 flows"><div class="metric"><label>외국인 순매수<br><small>[KRX](40일)</small></label><b class="red">12</b><em>2-3-2</em></div><div class="metric"><label>외국인 순매수<br><small>[NXT](40일)</small></label><b class="red">18</b><em>2-5-2</em></div><div class="metric"><label>기관 순매수<br><small>[KRX](40일)</small></label><b class="red">21</b><em>3-2-6</em></div><div class="metric"><label>기관 순매수<br><small>[NXT](40일)</small></label><b class="red">20</b><em>2-3-6</em></div></section><p class="hint">순매수 횟수 = 최근 40일 이내 순매수한 날짜 수 · 수열 = 연속 순매수일 구간</p>
+<section class="grid g3"><div class="metric"><label>멀티플 · 연간</label><b>28.4배</b></div><div class="metric"><label>멀티플 · 최근4Q</label><b>6.9배</b></div><div class="metric"><label>멀티플(E) · 최근4Q</label><b>4.5배</b></div></section>
+<section class="card chartcard"><div class="charttitle"><b>분기별 영업이익</b><span>영업이익률 % 포함</span></div><div class="cons"><b>컨센서스</b><span>목표주가 평균 <strong>495,227원</strong></span><span>평균 투자의견 <strong>4</strong></span></div><div class="chart" id="chart"></div><div class="labels" id="labels"></div></section><p class="disclaimer">예시 UI · 실제 데이터 공급원 연결 전 표시 수치는 실제 시장 데이터가 아닙니다.</p><footer>데이터 공급원 연결 후 자동/수동 갱신 설정 가능</footer></main></div><script src="app.js"></script></body></html>
