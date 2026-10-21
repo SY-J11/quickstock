@@ -149,7 +149,7 @@ function renderChart(qs){
     let amountY,marginY;
     if(v>=0){amountY=Math.max(24,by-33);marginY=Math.max(44,by-13)}
     else{amountY=Math.min(294,by+bh+22);marginY=Math.min(322,by+bh+43)}
-    return`<g><rect x="${x-34}" y="${by}" width="68" height="${bh}" rx="4" fill="${v<0?'#3979d8':'#df5967'}" opacity="${/\(E\)/i.test(q.label)?'.75':'1'}"/><text x="${x}" y="${amountY}" text-anchor="middle" font-size="18" textLength="${Math.min(cell-8,132)}" lengthAdjust="spacingAndGlyphs" font-weight="750" fill="currentColor">${amount}</text><text x="${x}" y="${marginY}" text-anchor="middle" font-size="15" textLength="${Math.min(cell-10,126)}" lengthAdjust="spacingAndGlyphs" font-weight="650" fill="#929baa">${pct}</text></g>`;
+    return`<g><rect x="${x-34}" y="${by}" width="68" height="${bh}" rx="4" fill="${v<0?'#3979d8':'#df5967'}" opacity="${/\(E\)/i.test(q.label)?'.75':'1'}"/><text x="${x}" y="${amountY}" text-anchor="middle" font-size="15" textLength="${Math.min(cell-8,132)}" lengthAdjust="spacingAndGlyphs" font-weight="750" fill="currentColor">${amount}</text><text x="${x}" y="${marginY}" text-anchor="middle" font-size="13" textLength="${Math.min(cell-10,126)}" lengthAdjust="spacingAndGlyphs" font-weight="650" fill="#929baa">${pct}</text></g>`;
   }).join('');
   chart.innerHTML=`<svg class="profit-svg" viewBox="0 0 ${W} 340" preserveAspectRatio="none" role="img"><line x1="0" y1="${zero}" x2="${W}" y2="${zero}" stroke="#929baa" stroke-dasharray="4 4"/>${bars}</svg>`;
   labels.innerHTML=qs.map(q=>`<span>${escapeHtml(q.label||'—')}</span>`).join('');
