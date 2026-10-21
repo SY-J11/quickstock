@@ -1,4 +1,6 @@
 const API='https://m.stock.naver.com';
+// Cloudflare Worker URL: paste your deployed Worker URL here (e.g. https://naver-stock-proxy.<your-subdomain>.workers.dev).
+const PROXY_BASE='PASTE_YOUR_CLOUDFLARE_WORKER_URL_HERE';
 const seed=[
 {name:'삼성전자',code:'005930'},{name:'삼성전자우',code:'005935'},{name:'SK하이닉스',code:'000660'},{name:'한미반도체',code:'042700'},{name:'두산에너빌리티',code:'034020'},{name:'두산',code:'000150'},{name:'현대차',code:'005380'},{name:'기아',code:'000270'},{name:'LG에너지솔루션',code:'373220'},{name:'삼성SDI',code:'006400'},{name:'NAVER',code:'035420'},{name:'카카오',code:'035720'},{name:'제주반도체',code:'080220'},{name:'대원전선',code:'006340'},{name:'대덕전자',code:'353200'}
 ];
@@ -8,11 +10,15 @@ function pick(obj,...keys){for(const k of keys){const v=obj?.[k];if(v!==undefine
 function num(v){if(v===null||v===undefined)return null;const n=Number(String(v).replace(/,/g,'').replace(/%/g,'').replace(/원|배|억|조/g,'').trim());return Number.isFinite(n)?n:null;}
 function fmt(v,unit=''){if(v===null||v===undefined||v==='')return blank;return `${v}${unit}`;}
 async function getJson(url){
- const targets=[
+ const targets=[];
+ if(PROXY_BASE && !PROXY_BASE.includes('PASTE_YOUR_CLOUDFLARE_WORKER_URL_HERE')){
+   targets.push(`${PROXY_BASE.replace(/\/$/,'')}?url=${encodeURIComponent(url)}`);
+ }
+ targets.push(
    url,
    `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
    `https://corsproxy.io/?url=${encodeURIComponent(url)}`
- ];
+ );
  let last;
  for(const target of targets){
    try{
