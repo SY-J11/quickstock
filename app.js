@@ -150,7 +150,7 @@ function flowSummary(raw,type,exchange='KRX'){
   const runs=[];let run=0;
   for(const value of values){if(value>0)run++;else{if(run)runs.push(run);run=0}}
   if(run)runs.push(run);
-  return{count,streak:runs.length?runs.slice(0,3).join('-'):'0',days:values.length};
+  return{count,streak:runs.length?runs.slice(0,10).join('-'):'0',days:values.length};
 }
 async function fetchFlowHistory(code,exchangeType='KRX'){
   const exchange=String(exchangeType||'KRX').toUpperCase();
