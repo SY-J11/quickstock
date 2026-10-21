@@ -175,7 +175,7 @@ function renderChart(qs){
     if(v>=0){amountY=Math.max(24,by-33);marginY=Math.max(44,by-13)}
     else{amountY=Math.min(294,by+bh+22);marginY=Math.min(322,by+bh+43)}
     const marginColor=q.margin!==null&&q.margin<0?'#3979d8':'#929baa';
-    const amountWidth=Math.min(cell-8,Math.max(12,amount.length*12));
+    const amountWidth=Math.min(cell-8,Math.max(12,amount.length*14.4));
     const pctWidth=Math.min(cell-8,Math.max(12,pct.length*12));
     return`<g><rect x="${x-34}" y="${by}" width="68" height="${bh}" rx="4" fill="${v<0?'#3979d8':'#df5967'}" opacity="${/\(E\)/i.test(q.label)?'.75':'1'}"/><text x="${x}" y="${amountY}" text-anchor="middle" font-size="11" textLength="${amountWidth}" lengthAdjust="spacingAndGlyphs" font-weight="750" fill="${v<0?'#3979d8':'currentColor'}">${amount}</text><text x="${x}" y="${marginY}" text-anchor="middle" font-size="10" textLength="${pctWidth}" lengthAdjust="spacingAndGlyphs" font-weight="650" fill="${marginColor}">${pct}</text></g>`;
   }).join('');
