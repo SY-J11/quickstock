@@ -21,17 +21,16 @@ function capToEok(raw){if(raw===null||raw===undefined)return null;if(typeof raw=
 function financeInfo(raw){if(raw?.financeInfo?.rowList&&raw?.financeInfo?.trTitleList)return raw.financeInfo;for(const o of objects(raw)){if(o.financeInfo?.rowList&&o.financeInfo?.trTitleList)return o.financeInfo;if(Array.isArray(o.rowList)&&Array.isArray(o.trTitleList))return o}return null}
 function parseFinance(raw){const fi=financeInfo(raw);if(!fi)return{quarters:[],rows:[],headers:[]};const headers=(fi.trTitleList||[]).map(h=>{const key=typeof h==='string'?h:String(h.key??h.period??h.title??'');const label=typeof h==='string'?h:String(h.title??h.period??h.key??'');return{key,label,est:typeof h==='object'&&(String(h.isConsensus??h.isEstimate??'').toUpperCase()==='Y'||/\(E\)|예상|추정/i.test(label))||/\(E\)|예상|추정/i.test(label)}});const rows=(fi.rowList||[]).map(row=>({label:String(row.title??row.name??row.label??row.itemName??'').replace(/\s/g,''),raw:row,columns:row.columns||row.values||row.data||{}}));const cellValue=(row,h)=>{const raw=row?.raw||row;const cols=row?.columns||raw?.columns||raw?.values||raw?.data||{};const candidates=[h.key,h.label,h.key.replace(/\D/g,''),h.label.replace(/[^0-9]/g,'')].filter(Boolean);if(Array.isArray(cols)){const idx=headers.indexOf(h);if(idx>=0&&cols[idx]!==undefined){const c=cols[idx];return financeNum(c?.value??c?.formattedValue??c?.text??c?.data??c)}}else if(cols&&typeof cols==='object'){for(const k of candidates){if(cols[k]!==undefined){const c=cols[k];return financeNum(c?.value??c?.formattedValue??c?.text??c?.data??c)}}for(const [k,c] of Object.entries(cols)){if(candidates.some(x=>x&&String(k).includes(x))){const v=financeNum(c?.value??c?.formattedValue??c?.text??c?.data??c);if(v!==null)return v}}}if(Array.isArray(raw?.values)){const idx=headers.indexOf(h);if(idx>=0)return financeNum(raw.values[idx]?.value??raw.values[idx])}if(Array.isArray(raw?.data)){const idx=headers.indexOf(h);if(idx>=0)return financeNum(raw.data[idx]?.value??raw.data[idx])}return null};const get=(patterns,h)=>{const row=rows.find(x=>patterns.some(re=>re.test(x.label)));return row?cellValue(row,h):null};const quarters=headers.map(h=>{const profit=get([/^영업이익(?:\([^)]*\))?$/,/^영업이익$/],h),sales=get([/^매출액(?:\(억원\))?$/,/^매출액.*$/],h),rawMargin=get([/영업이익률/],h);let margin=rawMargin;if(margin===null&&profit!==null&&sales!==null&&sales!==0)margin=profit/sales*100;return{label:h.label+(h.est&&!/\(E\)/i.test(h.label)?'(E)':''),key:h.key,est:h.est,profit,margin,eps:get([/^EPS(?:\(원\))?$/,/주당순이익/],h),net:get([/^당기순이익(?:\(억원\))?$/,/지배주주순이익/,/^순이익/],h),sales,roe:get([/^ROE(?:\(%\))?$/,/자기자본이익률/],h),debt:get([/^부채비율(?:\(%\))?$/],h)}});return{quarters,rows,headers}}
 function latestActual(quarters){return (quarters||[]).filter(q=>!q.est&&!/\(E\)/i.test(q.label)&&/^20\d{2}[.\-/]/.test(q.label)).sort((a,b)=>String(a.key).localeCompare(String(b.key)))}
-function annualProfitFromCompleteQuarters(quarters){const previousYear=new Date().getFullYear()-1;const qByQuarter=new Map();for(const q of latestActual(quarters)){const text=String(q.label||'')+' '+String(q.key||'');const m=text.match(/(20\d{2})[.\-/](\d{1,2})/);if(!m||Number(m[1])!==previousYear||q.profit===null)continue;const month=Number(m[2]);const quarter=Math.ceil(month/3);if(quarter>=1&&quarter<=4&&!qByQuarter.has(quarter))qByQuarter.set(quarter,q.profit)}return [1,2,3,4].every(n=>qByQuarter.has(n))?[1,2,3,4].reduce((sum,n)=>sum+qByQuarter.get(n),0):null}
+function annualProfitFromCompleteQuarters(quarters){const groups=new Map();for(const q of latestActual(quarters)){const m=String(q.label||q.key||'').match(/(20\d{2})[.\-/](\d{1,2})/);if(!m||q.profit===null)continue;const year=Number(m[1]),month=Number(m[2]);if(year>=new Date().getFullYear())continue;const quarter=Math.ceil(month/3);if(![1,2,3,4].includes(quarter))continue;if(!groups.has(year))groups.set(year,new Map());groups.get(year).set(quarter,q.profit)}const years=[...groups.keys()].sort((a,b)=>b-a);for(const year of years){const q=groups.get(year);if([1,2,3,4].every(n=>q.has(n)))return [1,2,3,4].reduce((sum,n)=>sum+q.get(n),0)}return null}
 function annualOperatingProfit(raw, quarterly=[]){
   // 연간 엔드포인트에서만 확정된 과거 회계연도 영업이익을 선택한다.
   // 분기 자료나 integration의 숫자를 연간 실적으로 잘못 사용하는 fallback은 하지 않는다.
   const currentYear=new Date().getFullYear();
-  const previousYear=currentYear-1;
   const parsed=parseFinance(raw);
   const getYear=x=>{const m=(String(x.label||'')+' '+String(x.key||'')).match(/20\d{2}/);return m?Number(m[0]):null};
   const actual=parsed.quarters
     .map(q=>({...q,year:getYear(q)}))
-    .filter(q=>q.year===previousYear&&!q.est&&!/\(E\)|예상|추정/i.test(q.label)&&q.profit!==null)
+    .filter(q=>q.year!==null&&q.year<currentYear&&!q.est&&!/\(E\)|예상|추정/i.test(q.label)&&q.profit!==null)
     .sort((a,b)=>a.year-b.year);
   if(actual.length)return actual[actual.length-1].profit;
   // 재무 API 응답의 필드명이 달라 parseFinance가 읽지 못하는 경우를 위한 직접 해석.
@@ -63,11 +62,12 @@ function annualOperatingProfit(raw, quarterly=[]){
       if(cell===undefined&&Array.isArray(row.data))cell=row.data[i];
       const v=financeNum(cell?.value??cell?.formattedValue??cell?.text??cell?.displayValue??cell?.data??cell?.amount??cell);
       return{year,est,v};
-    }).filter(x=>x.year===previousYear&&!x.est&&x.v!==null);
+    }).filter(x=>x.year!==null&&x.year<currentYear&&!x.est&&x.v!==null);
     entries.sort((a,b)=>a.year-b.year);
     if(entries.length)return entries[entries.length-1].v;
   }
   // 연간 API 파싱이 실패해도 전년도 분기 4개가 모두 확인될 때만 합산한다.
+  const previousYear=new Date().getFullYear()-1;
   const yearQuarters=latestActual(quarterly).filter(q=>{
     const m=(String(q.label||'')+' '+String(q.key||'')).match(/20\d{2}/);
     return m&&Number(m[0])===previousYear&&q.profit!==null;
@@ -171,20 +171,19 @@ function flowSummary(raw,type){
   if(run>0)runs.push(run);
   return{count:positives,streak:runs.length?runs.slice(0,3).join('-'):'0'};
 }
-async function firstUsefulFlow(urls,type){let lastError=null;for(const url of urls){try{const data=await getJson(url);if(flowSummary(data,type).count!==null)return data;lastError=Error('수급 필드 없음')}catch(e){lastError=e}}throw lastError||Error('수급 데이터 조회 실패')}
+async function firstUsefulFlow(urls,type){let last=null;for(const url of urls){try{const data=await getJson(url);last=data;if(flowSummary(data,type).count!==null)return data}catch(e){}}if(last!==null)return last;throw Error('수급 데이터 조회 실패')}
 
 function renderChart(qs){
   const chart=$('chart'),labels=$('labels');qs=(qs||[]).slice(-6);
   if(!qs.length||qs.every(q=>q.profit===null)){chart.innerHTML='<div class="chart-empty">분기 영업이익 데이터를 확인할 수 없습니다.</div>';labels.innerHTML='';return}
   const vals=qs.map(v=>v.profit).filter(v=>v!==null),maxP=Math.max(0,...vals),maxN=Math.max(0,...vals.map(v=>-v));
   const W=900,top=64,bottom=258,h=bottom-top;
-  const allNonNegative=vals.every(v=>v>=0);
   const zero=maxP&&maxN?top+h*maxP/(maxP+maxN):maxP?bottom:top;
   const y=v=>v>=0?zero-(maxP?v/maxP*(zero-top):0):zero+(maxN?-v/maxN*(bottom-zero):0);
   const cell=W/qs.length;
   const bars=qs.map((q,i)=>{
     const x=(i+.5)*cell,v=q.profit;
-    if(v===null)return`<text x="${x}" y="160" text-anchor="middle" font-size="10" fill="currentColor">자료 없음</text>`;
+    if(v===null)return`<text x="${x}" y="160" text-anchor="middle" font-size="14" fill="currentColor">자료 없음</text>`;
     const yy=y(v),bh=Math.max(3,Math.abs(zero-yy)),by=v<0?zero:yy;
     const amount=Math.abs(v)>=10000?`${(v/10000).toLocaleString('ko-KR',{maximumFractionDigits:1})}조`:`${v.toLocaleString('ko-KR',{maximumFractionDigits:1})}억`;
     const pct=q.margin===null?'(—)':`(${q.margin.toLocaleString('ko-KR',{maximumFractionDigits:1})}%)`;
@@ -192,11 +191,10 @@ function renderChart(qs){
     if(v>=0){amountY=Math.max(24,by-33);marginY=Math.max(44,by-13)}
     else{amountY=Math.min(294,by+bh+22);marginY=Math.min(322,by+bh+43)}
     const marginColor=q.margin!==null&&q.margin<0?'#3979d8':'#929baa';
-    return`<g><rect x="${x-34}" y="${by}" width="68" height="${bh}" rx="4" fill="${v<0?'#3979d8':'#df5967'}" opacity="${/\(E\)/i.test(q.label)?'.75':'1'}"/><text x="${x}" y="${amountY}" text-anchor="middle" font-size="10" textLength="${Math.min(cell-8,132)}" lengthAdjust="spacingAndGlyphs" font-weight="750" fill="${v<0?'#3979d8':'currentColor'}">${amount}</text><text x="${x}" y="${marginY}" text-anchor="middle" font-size="10" textLength="${Math.min(cell-10,126)}" lengthAdjust="spacingAndGlyphs" font-weight="650" fill="${marginColor}">${pct}</text></g>`;
+    return`<g><rect x="${x-34}" y="${by}" width="68" height="${bh}" rx="4" fill="${v<0?'#3979d8':'#df5967'}" opacity="${/\(E\)/i.test(q.label)?'.75':'1'}"/><text x="${x}" y="${amountY}" text-anchor="middle" font-size="13" textLength="${Math.min(cell-8,132)}" lengthAdjust="spacingAndGlyphs" font-weight="750" fill="${v<0?'#3979d8':'currentColor'}">${amount}</text><text x="${x}" y="${marginY}" text-anchor="middle" font-size="11" textLength="${Math.min(cell-10,126)}" lengthAdjust="spacingAndGlyphs" font-weight="650" fill="${marginColor}">${pct}</text></g>`;
   }).join('');
-  const baselineLabels=allNonNegative?qs.map((q,i)=>`<text x="${(i+.5)*cell}" y="278" text-anchor="middle" font-size="10" font-weight="600" fill="currentColor">${escapeHtml(q.label||'—')}</text>`).join(''):'';
-  chart.innerHTML=`<svg class="profit-svg" viewBox="0 0 ${W} 340" preserveAspectRatio="none" role="img"><line x1="0" y1="${zero}" x2="${W}" y2="${zero}" stroke="#929baa" stroke-dasharray="4 4"/>${bars}${baselineLabels}</svg>`;
-  labels.innerHTML=allNonNegative?'':qs.map(q=>`<span>${escapeHtml(q.label||'—')}</span>`).join('');
+  chart.innerHTML=`<svg class="profit-svg" viewBox="0 0 ${W} 340" preserveAspectRatio="none" role="img"><line x1="0" y1="${zero}" x2="${W}" y2="${zero}" stroke="#929baa" stroke-dasharray="4 4"/>${bars}</svg>`;
+  labels.innerHTML=qs.map(q=>`<span>${escapeHtml(q.label||'—')}</span>`).join('');
 }
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function isNegativeValue(value){if(value===null||value===undefined)return false;const text=String(value).trim();if(/^[-−]/.test(text))return true;const n=num(text);return n!==null&&n<0}
@@ -212,6 +210,6 @@ first([`${API}/api/stock/${code}/finance/annual`]),
 first([`${API}/api/stock/${code}/price?pageSize=1&page=1`]),
 first([`${DESKTOP}/api/domestic/detail/${code}/consensus`]),
 firstUsefulFlow([`${DESKTOP}/api/domestic/detail/${code}/trend?tradeType=KRX&startIdx=0&pageSize=40`,`${API}/front-api/stock/domestic/trend?code=${code}&tradeType=KRX`,`${API}/front-api/stock/domestic/trend?code=${code}`],'foreign'),
-firstUsefulFlow([`${DESKTOP}/api/domestic/detail/${code}/trend?tradeType=NXT&startIdx=0&pageSize=40`,`${API}/front-api/stock/domestic/trend?code=${code}&tradeType=NXT`],'foreign')
+firstUsefulFlow([`${DESKTOP}/api/domestic/detail/${code}/trend?tradeType=NXT&startIdx=0&pageSize=40`,`${API}/front-api/stock/domestic/trend?code=${code}&tradeType=NXT`,`${API}/front-api/stock/domestic/trend?code=${code}`],'foreign')
 ]);if(id!==seq)return;const val=i=>results[i].status==='fulfilled'?results[i].value:null;const basic=val(0),integration=val(1),quarter=val(2),annual=val(3),priceRaw=val(4),consensus=val(5),flowKr=val(6),flowNx=val(7);const priceData=Array.isArray(priceRaw)?priceRaw[0]||{}:priceRaw||{};if(!basic&&!integration&&!priceData)throw Error('네이버 증권 API 응답을 받지 못했습니다.');const b=extractBasic(basic||{},integration||{},priceData,consensus||{},code,current.name);const q=parseFinance(quarter),a=parseFinance(annual),iq=parseFinance(integration);const allQ=q.quarters.length?q.quarters:iq.quarters;const actualQ=latestActual(allQ);const annualActual=latestActual(a.quarters);const annualOp=annualOperatingProfit(annual,allQ)??annualProfitFromCompleteQuarters(allQ);if(annualOp!==null)b.annualOp=`${annualOp.toLocaleString('ko-KR',{maximumFractionDigits:1})}억`;const last4=actualQ.slice(-4);if(last4.length===4&&last4.every(x=>x.profit!==null)){const sum=last4.reduce((s,x)=>s+x.profit,0);b.ttmOp=`${sum.toLocaleString('ko-KR',{maximumFractionDigits:1})}억`}if(last4.length===4&&last4.every(x=>x.net!==null)){const sum=last4.reduce((s,x)=>s+x.net,0);const opSum=last4.every(x=>x.profit!==null)?last4.reduce((s,x)=>s+x.profit,0):null;b.ttmNet=`${sum.toLocaleString('ko-KR',{maximumFractionDigits:1})}억${opSum!==null&&opSum!==0?` (${(sum/opSum*100).toLocaleString('ko-KR',{maximumFractionDigits:1})}%)`:''}`}const latest=actualQ[actualQ.length-1];if(latest){if(latest.roe!==null)b.roe=fmt(latest.roe,'%');if(latest.debt!==null)b.debt=fmt(latest.debt,'%')}if(b.roe===blank||b.debt===blank){const aq=annualActual[annualActual.length-1];if(aq){if(b.roe===blank&&aq.roe!==null)b.roe=fmt(aq.roe,'%');if(b.debt===blank&&aq.debt!==null)b.debt=fmt(aq.debt,'%')}}const marketCapEok=capToEok(metric(integration||{},['marketValue','marketCap','marketSum','marketCapitalization','시가총액']));const annualOpValue=annualOp!==null?annualOp:null;const ttmOpValue=last4.length===4&&last4.every(x=>x.profit!==null)?last4.reduce((s,x)=>s+x.profit,0):null;const expected4=allQ.filter(x=>x.profit!==null).slice(-4);const estTtmOpValue=expected4.length===4?expected4.reduce((s,x)=>s+x.profit,0):null;if(marketCapEok!==null&&annualOpValue!==null&&annualOpValue!==0)b.annualMultiple=fmt(marketCapEok/annualOpValue,'배');if(marketCapEok!==null&&ttmOpValue!==null&&ttmOpValue!==0)b.ttmMultiple=fmt(marketCapEok/ttmOpValue,'배');if(marketCapEok!==null&&estTtmOpValue!==null&&estTtmOpValue!==0)b.estTtmMultiple=fmt(marketCapEok/estTtmOpValue,'배');const displayQ=allQ.filter(x=>x.profit!==null||x.eps!==null).slice(-6);b.quarters=displayQ;b.epsRows=allQ.slice(-6).map(x=>[x.label,x.eps===null?blank:x.eps.toLocaleString('ko-KR',{maximumFractionDigits:1})]);const flows=[['fKr',flowKr,'foreign'],['fNx',flowNx,'foreign'],['iKr',flowKr,'institution'],['iNx',flowNx,'institution']];for(const [prefix,raw,type] of flows){const f=flowSummary(raw,type);const count=$(prefix+'Count'),streak=$(prefix+'Streak');if(count){count.textContent=f.count===null?'자료 없음':`${f.count}/40일`;count.style.color=f.count!==null&&f.count>10?'#df5967':'';count.style.fontWeight=f.count!==null&&f.count>10?'800':''}if(streak)streak.textContent=f.streak}const statusNames=['기본정보','주요지표','분기재무','연간재무','가격정보','컨센서스','KRX수급','NXT수급'];$('status').textContent=results.map((r,i)=>`${statusNames[i]} ${r.status==='fulfilled'?'OK':'실패'}`).join(' · ');render(b)}catch(e){if(id!==seq)return;$('status').textContent=`조회 오류: ${e.message}`;render({name:current.name,code,change:`조회 실패: ${e.message}`,quarters:[]})}}
 $('searchBtn').onclick=async()=>{const q=$('query').value.trim();if(!q)return;try{const r=await search(q);if(r.length===1)load(r[0].code,r[0].name);else showResults(r,q)}catch{const local=seed.filter(x=>x.name.toLowerCase().includes(q.toLowerCase())||x.code.startsWith(q));if(local.length===1)load(local[0].code,local[0].name);else showResults(local,q,'검색 API 오류. 6자리 종목코드로 검색해 주세요.')}};$('query').addEventListener('keydown',e=>{if(e.key==='Enter')$('searchBtn').click()});$('query').addEventListener('input',()=>{const q=$('query').value.trim();$('clear').hidden=!q;clearTimeout(timer);if(!q){$('results').hidden=true;return}timer=setTimeout(async()=>{try{showResults(await search(q),q)}catch{showResults(seed.filter(x=>x.name.toLowerCase().includes(q.toLowerCase())||x.code.startsWith(q)),q)}},350)});$('clear').onclick=()=>{$('query').value='';$('results').hidden=true;$('clear').hidden=true};$('theme').onclick=()=>document.body.classList.toggle('dark');$('refresh').onclick=()=>load(current.code,current.name);$('fav').onclick=()=>$('fav').textContent=$('fav').textContent==='☆'?'★':'☆';$('quick').innerHTML=seed.slice(0,8).map(s=>`<button data-code="${s.code}" data-name="${s.name}">${s.name}</button>`).join('');$('quick').querySelectorAll('button').forEach(b=>b.onclick=()=>load(b.dataset.code,b.dataset.name));load('005930','삼성전자');
