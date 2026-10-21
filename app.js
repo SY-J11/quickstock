@@ -23,65 +23,42 @@ function parseFinance(raw){const fi=financeInfo(raw);if(!fi)return{quarters:[],r
 function latestActual(quarters){return (quarters||[]).filter(q=>!q.est&&!/\(E\)/i.test(q.label)&&/^20\d{2}[.\-/]/.test(q.label)).sort((a,b)=>String(a.key).localeCompare(String(b.key)))}
 function annualProfitFromCompleteQuarters(quarters){const previousYear=new Date().getFullYear()-1;const qByQuarter=new Map();for(const q of latestActual(quarters)){const text=String(q.label||'')+' '+String(q.key||'');const m=text.match(/(20\d{2})[.\-/](\d{1,2})/);if(!m||Number(m[1])!==previousYear||q.profit===null)continue;const month=Number(m[2]);const quarter=Math.ceil(month/3);if(quarter>=1&&quarter<=4&&!qByQuarter.has(quarter))qByQuarter.set(quarter,q.profit)}return [1,2,3,4].every(n=>qByQuarter.has(n))?[1,2,3,4].reduce((sum,n)=>sum+qByQuarter.get(n),0):null}
 function annualOperatingProfit(raw, quarterly=[]){
-  // 연간 엔드포인트에서만 확정된 과거 회계연도 영업이익을 선택한다.
-  // 분기 자료나 integration의 숫자를 연간 실적으로 잘못 사용하는 fallback은 하지 않는다.
-  const currentYear=new Date().getFullYear();
-  const previousYear=currentYear-1;
-  const parsed=parseFinance(raw);
-  const getYear=x=>{const m=(String(x.label||'')+' '+String(x.key||'')).match(/20\d{2}/);return m?Number(m[0]):null};
-  const actual=parsed.quarters
-    .map(q=>({...q,year:getYear(q)}))
-    .filter(q=>q.year===previousYear&&!q.est&&!/\(E\)|예상|추정/i.test(q.label)&&q.profit!==null)
-    .sort((a,b)=>a.year-b.year);
-  if(actual.length)return actual[actual.length-1].profit;
-  // 재무 API 응답의 필드명이 달라 parseFinance가 읽지 못하는 경우를 위한 직접 해석.
+  // 연간 재무표의 '영업이익' 행에서 전년도 열을 직접 읽는다.
+  const previousYear=new Date().getFullYear()-1;
+  const isOperatingProfit=label=>{const x=String(label??'').replace(/\s/g,'');return /영업이익/.test(x)&&!/영업이익률|증감|성장|증가율|전년비|증가액|증가율/.test(x)};
+  const getYear=(h)=>{const label=typeof h==='string'?h:String(h?.title??h?.period??h?.key??h?.name??'');const key=typeof h==='string'?'':String(h?.key??'');const m=(label+' '+key).match(/20\d{2}/);return m?Number(m[0]):null};
+  const isEstimate=h=>{const label=typeof h==='string'?h:String(h?.title??h?.period??h?.key??h?.name??'');const flag=String(typeof h==='object'?(h.isConsensus??h.isEstimate??h.estimate??h.isForecast??''):'').toLowerCase();return ['y','yes','true','1'].includes(flag)||/\(E\)|예상|추정|컨센서스/i.test(label)};
   for(const o of objects(raw)){
-    const headers=o.trTitleList||o.titleList||o.headers||o.periodList;
+    const headers=o.trTitleList||o.titleList||o.headers||o.periodList||o.columnList;
     const rowList=o.rowList||o.rows||o.financialRows;
     if(!Array.isArray(headers)||!Array.isArray(rowList))continue;
-    const row=rowList.find(r=>{
-      const label=String(r.title??r.name??r.label??r.itemName??r.itemTitle??'').replace(/\s/g,'');
-      return /영업이익/.test(label)&&!/영업이익률|증감|성장|증가율|전년비|증가액/.test(label);
-    });
+    const row=rowList.find(r=>isOperatingProfit(r.title??r.name??r.label??r.itemName??r.itemTitle??r.code));
     if(!row)continue;
-    const cols=row.columns||row.values||row.data||row.columnList||row.valueList||{};
-    const entries=headers.map((h,i)=>{
-      const key=String(typeof h==='string'?h:(h.key??h.period??h.title??h.name??''));
-      const label=String(typeof h==='string'?h:(h.title??h.period??h.key??h.name??''));
-      const yearMatch=(label+' '+key).match(/20\d{2}/);
-      const year=yearMatch?Number(yearMatch[0]):null;
-      const flag=String(typeof h==='object'?(h.isConsensus??h.isEstimate??h.estimate??h.isForecast??''):'').toLowerCase();
-      const est=['y','yes','true','1'].includes(flag)||/\(E\)|예상|추정|컨센서스/i.test(label)||/\(E\)|예상|추정|컨센서스/i.test(key);
+    const cols=row.columns??row.values??row.data??row.columnList??row.valueList??row.financeData??{};
+    const values=headers.map((h,i)=>{
+      if(isEstimate(h)||getYear(h)!==previousYear)return null;
+      const key=typeof h==='string'?h:String(h?.key??h?.period??h?.title??h?.name??'');
+      const label=typeof h==='string'?h:String(h?.title??h?.period??h?.key??h?.name??'');
       let cell;
       if(Array.isArray(cols))cell=cols[i];
       else if(cols&&typeof cols==='object'){
-        const keys=[key,label,key.replace(/\D/g,''),label.replace(/[^0-9]/g,''),String(h?.key??'')].filter(Boolean);
-        for(const k of keys){if(cols[k]!==undefined){cell=cols[k];break}}
-        if(cell===undefined){const vals=Object.values(cols);if(vals.length===headers.length)cell=vals[i]}
+        for(const k of [key,label,key.replace(/\D/g,''),label.replace(/[^0-9]/g,''),String(h?.key??'')].filter(Boolean))if(cols[k]!==undefined){cell=cols[k];break}
+        if(cell===undefined){const arr=Object.values(cols);if(arr.length===headers.length)cell=arr[i]}
       }
       if(cell===undefined&&Array.isArray(row.values))cell=row.values[i];
       if(cell===undefined&&Array.isArray(row.data))cell=row.data[i];
-      const v=financeNum(cell?.value??cell?.formattedValue??cell?.text??cell?.displayValue??cell?.data??cell?.amount??cell);
-      return{year,est,v};
-    }).filter(x=>x.year===previousYear&&!x.est&&x.v!==null);
-    entries.sort((a,b)=>a.year-b.year);
-    if(entries.length)return entries[entries.length-1].v;
+      return financeNum(cell?.value??cell?.formattedValue??cell?.text??cell?.displayValue??cell?.data??cell?.amount??cell);
+    }).filter(v=>v!==null);
+    if(values.length)return values[values.length-1];
   }
-  // 연간 API 파싱이 실패해도 전년도 분기 4개가 모두 확인될 때만 합산한다.
-  const yearQuarters=latestActual(quarterly).filter(q=>{
-    const m=(String(q.label||'')+' '+String(q.key||'')).match(/20\d{2}/);
-    return m&&Number(m[0])===previousYear&&q.profit!==null;
-  });
-  const byQuarter=new Map();
-  for(const q of yearQuarters){
-    const text=String(q.label||'')+' '+String(q.key||'');
-    const m=text.match(/(?:[.\-/](\d{1,2})(?:\D|$)|Q([1-4])|([1-4])분기)/i);
-    let quarter=m?(m[1]?Math.ceil(Number(m[1])/3):Number(m[2]||m[3])):null;
-    if(!quarter){const index=yearQuarters.indexOf(q); if(yearQuarters.length===4)quarter=index+1;}
-    if(quarter>=1&&quarter<=4&&!byQuarter.has(quarter))byQuarter.set(quarter,q.profit);
-  }
-  if([1,2,3,4].every(n=>byQuarter.has(n)))return [1,2,3,4].reduce((sum,n)=>sum+byQuarter.get(n),0);
-  return null;
+  const parsed=parseFinance(raw);
+  const direct=parsed.quarters.filter(q=>!q.est&&!/\(E\)|예상|추정/i.test(q.label)&&String(q.label+' '+q.key).includes(String(previousYear))&&q.profit!==null);
+  if(direct.length)return direct[direct.length-1].profit;
+  // 분기 합산은 전년도 4개 분기 모두 있을 때만 허용
+  const qs=latestActual(quarterly).filter(q=>String(q.label+' '+q.key).includes(String(previousYear))&&q.profit!==null);
+  const byQ=new Map();
+  for(const q of qs){const m=(String(q.label)+' '+String(q.key)).match(/(?:[.\-/](\d{1,2})(?:\D|$)|Q([1-4])|([1-4])분기)/i);const n=m?(m[1]?Math.ceil(Number(m[1])/3):Number(m[2]||m[3])):null;if(n>=1&&n<=4&&!byQ.has(n))byQ.set(n,q.profit)}
+  return [1,2,3,4].every(n=>byQ.has(n))?[1,2,3,4].reduce((sum,n)=>sum+byQ.get(n),0):null;
 }
 function getFinanceMetric(parsed,patterns){const actual=parsed.quarters.filter(q=>!q.est&&!/\(E\)/i.test(q.label));for(let i=actual.length-1;i>=0;i--){for(const re of patterns){if(re.test('')){} }const q=actual[i];if(q.roe!==null||q.debt!==null)return q}return null}
 function flowRecords(raw){
@@ -114,61 +91,45 @@ function flowRecords(raw){
 }
 function flowSummary(raw,type){
   const rows=flowRecords(raw);
-  const aliases=type==='foreign'?
-    ['foreignPureBuy','foreignerPureBuy','foreignNetBuy','foreignerNetBuy','foreignPureBuyQuant','foreignerPureBuyQuant','foreignNetBuyVolume','foreignerNetBuyVolume','foreignerNetBuyQty','foreignNetBuyQty','foreignerBuySell','foreignNetVolume','foreignPureBuyAmount','foreignerPureBuyAmount','frgnrNtbyQty','frgnNtbyQty','frgnrNetBuyQty','frgnrNetBuy','frgnrPureBuyQty','frgnNtbyAmt','foreignerNetBuyAmount','foreignNetBuyAmount','foreignNetBuyCount','foreignNetBuyValue','frgnrNetBuyAmt','foreignNetBuyAmt','frgnrPureBuy','frgnrPureBuyAmt','foreignBuyNet','foreignNet','foreignNetBuyQuantity','foreignerNetBuyQuantity','frgnrNetBuyVolume','frgnrNetBuyAmount']:
-    ['organizationPureBuy','organPureBuy','institutionPureBuy','organNetBuy','institutionNetBuy','organizationNetBuy','organPureBuyQuant','institutionPureBuyQuant','organNetBuyVolume','institutionNetBuyVolume','organNetBuyQty','institutionNetBuyQty','organBuySell','organizationPureBuyAmount','orgnNtbyQty','orgnNetBuyQty','orgnNetBuy','orgnPureBuyQty','orgnNtbyAmt','organizationNetBuyAmount','institutionNetBuyAmount','organNetBuyAmount','orgnNetBuyAmt','institutionNetBuyValue','organizationNetBuyValue'];
   const investorRe=type==='foreign'?/(foreign|foreigner|frgnr|frgn|외국인)/i:/(organization|organ|institution|orgn|기관)/i;
   const netRe=/(pure.?buy|net.?buy|ntby|순매수|순매매|순매입|매매순|netbuy|netvolume)/i;
-  const buyRe=/(buy|purchase|매수)/i, sellRe=/(sell|매도)/i;
-  const pick=r=>{
-    for(const k of aliases){if(r?.[k]!==undefined&&r?.[k]!==null){const n=num(r[k]);if(n!==null)return n}}
-    const found=[];
+  const buyRe=/(buy|purchase|매수)/i,sellRe=/(sell|매도)/i;
+  const dateOf=r=>String(FLOW_DATE_KEYS.map(k=>r?.[k]??'').find(Boolean)||'').replace(/\D/g,'').slice(0,8);
+  const read=(r)=>{
+    if(!r||typeof r!=='object')return null;
+    const entries=[];
     const walk=(obj,path='',depth=0)=>{
-      if(!obj||typeof obj!=='object'||depth>4)return;
+      if(!obj||typeof obj!=='object'||depth>5)return;
       for(const [k,v] of Object.entries(obj)){
-        const key=String(k),combined=(path+' '+key).trim();
-        if(v!==null&&v!==undefined&&typeof v!=='object'&&investorRe.test(combined)&&netRe.test(combined)){
-          const n=num(v);if(n!==null)found.push(n);
-        } else if(v&&typeof v==='object'&&!Array.isArray(v)) walk(v,combined,depth+1);
+        const combined=(path+' '+k).trim();
+        if(v!==null&&v!==undefined&&typeof v!=='object'&&investorRe.test(combined)){
+          const n=num(v);if(n!==null){
+            const key=String(k);
+            if(netRe.test(combined))entries.push({n,score:/(amount|amt|value|금액|거래대금)/i.test(key)?5:/(quant|qty|volume|count|수량)/i.test(key)?4:3});
+            else if(buyRe.test(key)&&!netRe.test(key))entries.push({n,side:'buy',score:1});
+            else if(sellRe.test(key))entries.push({n,side:'sell',score:1});
+          }
+        } else if(v&&typeof v==='object')walk(v,combined,depth+1);
       }
     };
-    walk(r); if(found.length)return found[0];
-    // investor object has buy/sell but no precomputed net amount
-    for(const [k,v] of Object.entries(r||{})){
-      if(!investorRe.test(k)||!v||typeof v!=='object'||Array.isArray(v))continue;
-      let buy=null,sell=null;
-      for(const [kk,vv] of Object.entries(v)){
-        const n=num(vv);if(n===null)continue;
-        if(buyRe.test(kk)&&!netRe.test(kk))buy=n;
-        if(sellRe.test(kk))sell=n;
-      }
-      if(buy!==null&&sell!==null)return buy-sell;
-    }
-    // compact fields like foreignerBuy/foreignerSell or orgnBuy/orgnSell
-    let buy=null,sell=null;
-    for(const [k,v] of Object.entries(r||{})){
-      if(!investorRe.test(k)||v===null||v===undefined||typeof v==='object')continue;
-      const n=num(v);if(n===null)continue;
-      if(buyRe.test(k)&&!netRe.test(k))buy=n;
-      if(sellRe.test(k))sell=n;
-    }
-    if(buy!==null&&sell!==null)return buy-sell;
+    walk(r);
+    const net=entries.filter(x=>x.side===undefined).sort((a,b)=>b.score-a.score)[0];
+    if(net)return net.n;
+    const buys=entries.filter(x=>x.side==='buy'),sells=entries.filter(x=>x.side==='sell');
+    if(buys.length&&sells.length)return buys.sort((a,b)=>b.score-a.score)[0].n-sells.sort((a,b)=>b.score-a.score)[0].n;
     return null;
   };
-  const dateOf=r=>String(FLOW_DATE_KEYS.map(k=>r?.[k]??'').find(Boolean)||'').replace(/\D/g,'').slice(0,8);
+  // 날짜별로 수급값 후보를 모은 뒤 하루를 한 번만 계산한다.
   const byDate=new Map();
-  for(const r of rows){
-    const date=dateOf(r);if(!date)continue;
-    const value=pick(r);if(value===null)continue;
-    // A date is counted once. If the API has split investor rows, use the first valid row for this investor.
-    if(!byDate.has(date))byDate.set(date,value);
-  }
-  const values=[...byDate.entries()].sort((a,b)=>b[0].localeCompare(a[0])).slice(0,40).map(x=>x[1]);
+  for(const r of rows){const d=dateOf(r);if(!d)continue;const value=read(r);if(value===null)continue;if(!byDate.has(d))byDate.set(d,[]);byDate.get(d).push(value)}
+  const values=[...byDate.entries()].sort((a,b)=>b[0].localeCompare(a[0])).slice(0,40).map(([d,vs])=>{
+    // 같은 날짜에 중복된 동일 응답이 있으면 첫 값이 아니라 가장 빈번한 값으로 중복 방지
+    const freq=new Map();for(const v of vs)freq.set(v,(freq.get(v)||0)+1);
+    return [...freq.entries()].sort((a,b)=>b[1]-a[1])[0][0];
+  });
   if(!values.length)return{count:null,streak:'—'};
   const positives=values.filter(v=>v>0).length;
-  const runs=[];let run=0;
-  for(const v of values){if(v>0)run++;else{if(run>0)runs.push(run);run=0;}}
-  if(run>0)runs.push(run);
+  const runs=[];let run=0;for(const v of values){if(v>0)run++;else{if(run>0)runs.push(run);run=0}}if(run>0)runs.push(run);
   return{count:positives,streak:runs.length?runs.slice(0,3).join('-'):'0'};
 }
 async function firstUsefulFlow(urls,type){let lastError=null;for(const url of urls){try{const data=await getJson(url);if(flowSummary(data,type).count!==null)return data;lastError=Error('수급 필드 없음')}catch(e){lastError=e}}throw lastError||Error('수급 데이터 조회 실패')}
@@ -192,7 +153,7 @@ function renderChart(qs){
     if(v>=0){amountY=Math.max(24,by-33);marginY=Math.max(44,by-13)}
     else{amountY=Math.min(294,by+bh+22);marginY=Math.min(322,by+bh+43)}
     const marginColor=q.margin!==null&&q.margin<0?'#3979d8':'#929baa';
-    return`<g><rect x="${x-34}" y="${by}" width="68" height="${bh}" rx="4" fill="${v<0?'#3979d8':'#df5967'}" opacity="${/\(E\)/i.test(q.label)?'.75':'1'}"/><text x="${x}" y="${amountY}" text-anchor="middle" font-size="10" textLength="${Math.min(cell-8,132)}" lengthAdjust="spacingAndGlyphs" font-weight="750" fill="${v<0?'#3979d8':'currentColor'}">${amount}</text><text x="${x}" y="${marginY}" text-anchor="middle" font-size="10" textLength="${Math.min(cell-10,126)}" lengthAdjust="spacingAndGlyphs" font-weight="650" fill="${marginColor}">${pct}</text></g>`;
+    return`<g><rect x="${x-34}" y="${by}" width="68" height="${bh}" rx="4" fill="${v<0?'#3979d8':'#df5967'}" opacity="${/\(E\)/i.test(q.label)?'.75':'1'}"/><text x="${x}" y="${amountY}" text-anchor="middle" font-size="10" textLength="${Math.min(cell-12,118)}" lengthAdjust="spacingAndGlyphs" font-weight="750" fill="${v<0?'#3979d8':'currentColor'}">${amount}</text><text x="${x}" y="${marginY}" text-anchor="middle" font-size="10" textLength="${Math.min(cell-14,112)}" lengthAdjust="spacingAndGlyphs" font-weight="650" fill="${marginColor}">${pct}</text></g>`;
   }).join('');
   const baselineLabels=allNonNegative?qs.map((q,i)=>`<text x="${(i+.5)*cell}" y="278" text-anchor="middle" font-size="10" font-weight="600" fill="currentColor">${escapeHtml(q.label||'—')}</text>`).join(''):'';
   chart.innerHTML=`<svg class="profit-svg" viewBox="0 0 ${W} 340" preserveAspectRatio="none" role="img"><line x1="0" y1="${zero}" x2="${W}" y2="${zero}" stroke="#929baa" stroke-dasharray="4 4"/>${bars}${baselineLabels}</svg>`;
