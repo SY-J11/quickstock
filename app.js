@@ -255,8 +255,9 @@ async function quickCapForStock(x){try{const [basic,integration]=await Promise.a
 function collectQuickStocks(root,out=[],seen=new Set()){
  if(!root||typeof root!=='object')return out;
  if(Array.isArray(root)){for(const v of root)collectQuickStocks(v,out,seen);return out}
- const rawCode=root.itemCode??root.stockCode??root.code??root.reutersCode??root.symbolCode??root.shortCode;
- const rawName=root.itemName??root.stockName??root.name??root.stockNm??root.korName;
+ // 네이버 국내 시장 목록 API는 일부 응답에서 키를 소문자(itemcode/itemname)로 반환한다.
+ const rawCode=root.itemCode??root.itemcode??root.stockCode??root.stockcode??root.code??root.reutersCode??root.reuterscode??root.symbolCode??root.symbolcode??root.shortCode??root.shortcode;
+ const rawName=root.itemName??root.itemname??root.stockName??root.stockname??root.name??root.stockNm??root.stocknm??root.korName??root.korname;
  if(rawCode!==undefined&&rawName!==undefined){
   const code=String(rawCode).trim().replace(/^A/i,'');
   const name=String(rawName).trim();
