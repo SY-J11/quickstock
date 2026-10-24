@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#f4f6fa"><title>STOCK INSIGHT PRO</title><link rel="stylesheet" href="style.css?v=74">
+<meta name="theme-color" content="#f4f6fa"><title>STOCK INSIGHT PRO</title><link rel="stylesheet" href="style.css?v=75">
   <link rel="apple-touch-icon" href="./Stock.png">
 </head>
 <body><div class="app">
@@ -11,6 +11,7 @@
 <section class="search-card"><div class="search-heading"><div><span class="eyebrow">STOCK SEARCH</span><h2>어떤 종목을 찾으세요?</h2><p>종목명 또는 6자리 종목코드로 검색하세요.</p></div><div class="search-symbol">⌕</div></div>
 <div class="searchbox"><span class="magnify"></span><input id="query" type="search" placeholder="종목명 또는 6자리 종목코드" autocomplete="off"><button id="clear" class="clear" hidden>×</button><button id="searchBtn" class="search-btn">검색 →</button></div><div id="results" class="results" hidden></div><section class="quick-rankings" aria-label="빠른 검색 순위">
 <div class="quick-group quick-group-full"><h3>전체 시가총액 순 20개</h3><div id="quick-all-cap" class="quick"><span class="quick-loading">불러오는 중…</span></div></div>
+<details class="quick-more"><summary><span>빠른 검색 순위 더보기</span><span class="quick-arrow" aria-hidden="true">⌄</span></summary><div class="quick-more-grid">
 <div class="quick-group"><h3>코스피 시가총액 순 10개</h3><div id="quick-kospi-cap" class="quick"><span class="quick-loading">불러오는 중…</span></div></div>
 <div class="quick-group"><h3>코스닥 시가총액 순 10개</h3><div id="quick-kosdaq-cap" class="quick"><span class="quick-loading">불러오는 중…</span></div></div>
 <div class="quick-group quick-group-full"><h3>전체 거래대금 순 20개</h3><div id="quick-value" class="quick"><span class="quick-loading">불러오는 중…</span></div></div>
@@ -19,6 +20,7 @@
 <div class="quick-group quick-group-full"><h3>전체 거래량 순 20개</h3><div id="quick-volume" class="quick"><span class="quick-loading">불러오는 중…</span></div></div>
 <div class="quick-group"><h3>코스피 거래량 순 10개</h3><div id="quick-kospi-volume" class="quick"><span class="quick-loading">불러오는 중…</span></div></div>
 <div class="quick-group"><h3>코스닥 거래량 순 10개</h3><div id="quick-kosdaq-volume" class="quick"><span class="quick-loading">불러오는 중…</span></div></div>
+</div></details>
 </section><p id="status" class="status">네이버 증권 데이터 연결 중…</p></section>
 <section class="card quote"><div class="name"><div><span id="name">종목을 검색하세요</span><small id="code"></small></div><button id="fav">☆</button></div><div class="price" id="price">— <span id="change">종목을 선택하면 시세가 표시됩니다.</span></div></section>
 <section class="grid g4"><div class="metric"><label>PER</label><b id="per">—</b></div><div class="metric"><label>PBR</label><b id="pbr">—</b></div><div class="metric"><label>EPS</label><b id="eps">—</b></div><div class="metric"><label>시가총액</label><b id="cap">—</b></div></section>
