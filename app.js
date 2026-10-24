@@ -321,20 +321,15 @@ async function loadQuickRanking(config){
  box.innerHTML='<span class="quick-loading">불러오는 중…</span>';
  try{
   let data,ranked;
-  if(config.id==='quick-value'){
-   // 네이버 증권 '거래대금 상위'의 전체 탭과 같은 통합 목록 API를 사용한다.
-   // 화면의 KRX + 전체 + 거래대금 상위 설정과 동일하게 KRX, 전체 통합 목록, 상위 20개를 요청한다.
-   const url=`${DESKTOP}/api/stockSecurity/individual-stocks/v3/domestic?listingType=tradingValueDesc&exchangeType=consolidated&index=0&size=20`;
-   data=await getJson(url);
-   ranked=collectQuickStocks(data);
-   if(ranked.length<20)ranked=collectQuickStocksAllLists(data,[],new Set());
-  }else{
-   const marketType=(config.id==='quick-volume')?'ALL':config.marketType;
-   const pageSize=config.pageSize||100;
-   const url=`${DESKTOP}/api/domestic/market/stock/default?tradeType=KRX&marketType=${encodeURIComponent(marketType)}&orderType=${encodeURIComponent(config.orderType)}&startIdx=0&pageSize=${pageSize}`;
-   data=await getJson(url);
-   ranked=collectQuickStocks(data);
-  }
+  // 네이버 증권 실시간 랭킹의 화면 설정과 같은 국내 주식 순위 API를 사용한다.
+  // 거래대금 상위: 거래소 KRX + 시장 전체(코스피/코스닥 개별 선택 아님) + priceTop + 20개.
+  // v3 individual-stocks 응답은 일부 항목을 현재 파서가 종목으로 인식하지 못해 17개만 잡힐 수 있다.
+  // 기본 국내시장 랭킹 API는 같은 priceTop 정렬을 지원하고 기존 Worker 허용 목록에도 포함되어 있다.
+  const marketType=(config.id==='quick-volume')?'ALL':config.marketType;
+  const pageSize=config.pageSize||config.limit||20;
+  const url=`${DESKTOP}/api/domestic/market/stock/default?tradeType=KRX&marketType=${encodeURIComponent(marketType)}&orderType=${encodeURIComponent(config.orderType)}&startIdx=0&pageSize=${pageSize}`;
+  data=await getJson(url);
+  ranked=collectQuickStocks(data);
   const required=config.limit||10;if(ranked.length<required)throw Error(`순위 응답에서 종목을 ${required}개 찾지 못했습니다 (${ranked.length}개)`);
   const unique=ranked.slice(0,config.limit||10);
   box.innerHTML=unique.map((x,i)=>`<button data-code="${x.code}" data-name="${escapeHtml(x.name)}" title="${escapeHtml(config.label)} ${i+1}위"><small>${i+1}</small>${escapeHtml(x.name)}</button>`).join('');
