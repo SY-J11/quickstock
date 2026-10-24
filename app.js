@@ -328,8 +328,8 @@ async function loadQuickRanking(config){
   let data,ranked;
   if(config.id==='quick-value'){
    // 요청하신 네이버 실시간 랭킹 화면과 동일: KRX + 전체 + 거래대금 상위 + 20개.
-   // stocklist/priceTop 화면의 국내 종목 v3 목록 API를 사용해 화면과 동일한 정렬 원본을 받는다.
-   const url=`${DESKTOP}/api/stockSecurity/individual-stocks/v3/domestic?listingType=tradingValueDesc&exchangeType=krx&index=0&size=20`;
+   // stocklist/priceTop 화면의 국내 종목 v3 목록 API를 사용한다. 응답에 코드 없는 항목이 섞일 수 있어 100개를 받아 유효한 종목 20개를 추린다.
+   const url=`${DESKTOP}/api/stockSecurity/individual-stocks/v3/domestic?listingType=tradingValueDesc&exchangeType=krx&index=0&size=100`;
    data=await getJson(url);
    ranked=collectQuickStocksAllLists(data);
   }else{
