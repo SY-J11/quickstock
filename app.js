@@ -286,7 +286,7 @@ function collectQuickStocks(root,out=[],seen=new Set()){
 const QUICK_RANKINGS=[
  {id:'quick-kospi-cap',label:'코스피 시가총액',marketType:'KOSPI',orderType:'marketSum'},
  {id:'quick-kosdaq-cap',label:'코스닥 시가총액',marketType:'KOSDAQ',orderType:'marketSum'},
- {id:'quick-value',label:'거래대금 전체',marketType:'ALL',orderType:'priceTop',limit:20},
+ {id:'quick-value',label:'전체 거래대금 순 20개',marketType:'ALL',orderType:'priceTop',limit:20,pageSize:20},
  {id:'quick-volume',label:'거래량 전체',marketType:'ALL',orderType:'quantTop',limit:20}
 ];
 async function loadQuickRanking(config){
@@ -294,7 +294,9 @@ async function loadQuickRanking(config){
  box.innerHTML='<span class="quick-loading">불러오는 중…</span>';
  try{
   const marketType=(config.id==='quick-value'||config.id==='quick-volume')?'ALL':config.marketType;
-  const url=`${DESKTOP}/api/domestic/market/stock/default?tradeType=KRX&marketType=${encodeURIComponent(marketType)}&orderType=${encodeURIComponent(config.orderType)}&startIdx=0&pageSize=100`;
+  const pageSize=config.pageSize||100;
+  // 네이버 증권 거래대금 상위(priceTop) 화면의 '전체' 탭에 맞춰 ALL 시장만 요청한다.
+  const url=`${DESKTOP}/api/domestic/market/stock/default?tradeType=KRX&marketType=${encodeURIComponent(marketType)}&orderType=${encodeURIComponent(config.orderType)}&startIdx=0&pageSize=${pageSize}`;
   const data=await getJson(url);
   const ranked=collectQuickStocks(data);
   const required=config.limit||10;if(ranked.length<required)throw Error(`순위 응답에서 종목을 ${required}개 찾지 못했습니다 (${ranked.length}개)`);
