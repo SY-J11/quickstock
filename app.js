@@ -326,19 +326,13 @@ async function loadQuickRanking(config){
  box.innerHTML='<span class="quick-loading">불러오는 중…</span>';
  try{
   let data,ranked;
-  if(config.id==='quick-value'){
-   // 요청하신 네이버 실시간 랭킹 화면과 동일: KRX + 전체 + 거래대금 상위 + 20개.
-   // stocklist/priceTop 화면의 국내 종목 v3 목록 API를 사용한다. 응답에 코드 없는 항목이 섞일 수 있어 100개를 받아 유효한 종목 20개를 추린다.
-   const url=`${DESKTOP}/api/stockSecurity/individual-stocks/v3/domestic?listingType=tradingValueDesc&exchangeType=krx&index=0&size=100`;
-   data=await getJson(url);
-   ranked=collectQuickStocksAllLists(data);
-  }else{
-   const marketType=(config.id==='quick-volume')?'ALL':config.marketType;
-   const pageSize=config.pageSize||config.limit||20;
-   const url=`${DESKTOP}/api/domestic/market/stock/default?tradeType=KRX&marketType=${encodeURIComponent(marketType)}&orderType=${encodeURIComponent(config.orderType)}&startIdx=0&pageSize=${pageSize}`;
-   data=await getJson(url);
-   ranked=collectQuickStocks(data);
-  }
+  // 네이버 화면 /market/stock/kr/stocklist/priceTop에서 사용하는 시장 랭킹 API와 같은 경로.
+  // v3 individual-stocks 목록은 화면의 '전체 + 거래대금 상위'와 일치한다고 확인되지 않아 사용하지 않는다.
+  const marketType=(config.id==='quick-volume')?'ALL':config.marketType;
+  const pageSize=config.pageSize||config.limit||20;
+  const url=`${DESKTOP}/api/domestic/market/stock/default?tradeType=KRX&marketType=${encodeURIComponent(marketType)}&orderType=${encodeURIComponent(config.orderType)}&startIdx=0&pageSize=${pageSize}`;
+  data=await getJson(url);
+  ranked=collectQuickStocks(data);
   const required=config.limit||10;if(ranked.length<required)throw Error(`순위 응답에서 종목을 ${required}개 찾지 못했습니다 (${ranked.length}개)`);
   const unique=ranked.slice(0,config.limit||10);
   box.innerHTML=unique.map((x,i)=>`<button data-code="${x.code}" data-name="${escapeHtml(x.name)}" title="${escapeHtml(config.label)} ${i+1}위"><small>${i+1}</small>${escapeHtml(x.name)}</button>`).join('');
