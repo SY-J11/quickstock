@@ -270,18 +270,27 @@ function collectQuickStocks(root,out=[],seen=new Set()){
  for(const v of Object.values(root))if(v&&typeof v==='object')collectQuickStocks(v,out,seen);
  return out;
 }
-async function loadQuickMarketCap(){
- const box=$('quick');box.innerHTML='<span class="quick-loading">현재 시가총액 순위 불러오는 중…</span>';
+const QUICK_RANKINGS=[
+ {id:'quick-kospi-cap',label:'코스피 시가총액',marketType:'KOSPI',orderType:'marketSum'},
+ {id:'quick-kosdaq-cap',label:'코스닥 시가총액',marketType:'KOSDAQ',orderType:'marketSum'},
+ {id:'quick-value',label:'거래대금',marketType:'ALL',orderType:'priceTop'},
+ {id:'quick-volume',label:'거래량',marketType:'ALL',orderType:'quantTop'}
+];
+async function loadQuickRanking(config){
+ const box=$(config.id);if(!box)return;
+ box.innerHTML='<span class="quick-loading">불러오는 중…</span>';
  try{
-  // 네이버 증권 국내 증시 화면의 실제 랭킹 API. marketSum은 시가총액 순 정렬이다.
-  const url=`${DESKTOP}/api/domestic/market/stock/default?tradeType=KRX&marketType=ALL&orderType=marketSum&startIdx=0&pageSize=100`;
+  const url=`${DESKTOP}/api/domestic/market/stock/default?tradeType=KRX&marketType=${encodeURIComponent(config.marketType)}&orderType=${encodeURIComponent(config.orderType)}&startIdx=0&pageSize=100`;
   const data=await getJson(url);
   const ranked=collectQuickStocks(data);
-  if(ranked.length<10)throw Error(`네이버 시가총액 순위 응답에서 종목을 10개 찾지 못했습니다 (${ranked.length}개)`);
-  // API 자체가 시가총액 순으로 정렬하므로 현재가×주식수 재계산이나 오래된 별도 목록으로 재정렬하지 않는다.
+  if(ranked.length<10)throw Error(`순위 응답에서 종목을 10개 찾지 못했습니다 (${ranked.length}개)`);
   const unique=ranked.slice(0,10);
-  box.innerHTML=unique.map((x,i)=>`<button data-code="${x.code}" data-name="${escapeHtml(x.name)}" title="네이버 증권 현재 시가총액 순위 ${i+1}위"><small>${i+1}</small> ${escapeHtml(x.name)}</button>`).join('');
+  box.innerHTML=unique.map((x,i)=>`<button data-code="${x.code}" data-name="${escapeHtml(x.name)}" title="${escapeHtml(config.label)} ${i+1}위"><small>${i+1}</small>${escapeHtml(x.name)}</button>`).join('');
   box.querySelectorAll('button').forEach(b=>b.onclick=()=>load(b.dataset.code,b.dataset.name));
- }catch(e){box.innerHTML='<span class="quick-loading">현재 시가총액 순위를 불러오지 못했습니다. 잠시 후 새로고침해 주세요.</span>';console.warn('네이버 국내 시가총액 순위 API 조회 실패:',e)}
+ }catch(e){
+  box.innerHTML='<span class="quick-loading">순위를 불러오지 못했습니다. 잠시 후 새로고침해 주세요.</span>';
+  console.warn(`${config.label} 순위 조회 실패:`,e);
+ }
 }
-loadQuickMarketCap();$('name').textContent='종목을 검색하세요';$('code').textContent='';$('price').innerHTML='— <span id="change">종목을 선택하면 시세가 표시됩니다.</span>';$('status').textContent='종목명 또는 종목코드를 검색하거나 빠른 검색에서 선택하세요.';$('query').value='';$('refresh').onclick=()=>{if(current.code)load(current.code,current.name)};
+function loadQuickRankings(){QUICK_RANKINGS.forEach(config=>loadQuickRanking(config))}
+loadQuickRankings();$('name').textContent='종목을 검색하세요';$('code').textContent='';$('price').innerHTML='— <span id="change">종목을 선택하면 시세가 표시됩니다.</span>';$('status').textContent='종목명 또는 종목코드를 검색하거나 빠른 검색에서 선택하세요.';$('query').value='';$('refresh').onclick=()=>{if(current.code)load(current.code,current.name)};
