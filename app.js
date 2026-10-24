@@ -260,8 +260,8 @@ function collectQuickStocksAllLists(root,out=[],seen=new Set()){
   const direct=[];
   for(const item of root){
    if(!item||typeof item!=='object'||Array.isArray(item))continue;
-   const rawCode=item.itemCode??item.itemcode??item.stockCode??item.stockcode??item.code??item.reutersCode??item.reuterscode??item.symbolCode??item.symbolcode??item.shortCode??item.shortcode??item.stockCodeValue??item.stock_code??item.isuCd??item.ISU_CD??item.stockId??item.stock_id??item.securityCode??item.security_code;
-   const rawName=item.itemName??item.itemname??item.stockName??item.stockname??item.name??item.stockNm??item.stocknm??item.korName??item.korname??item.stockNmKr??item.stock_nm??item.isuNm??item.ISU_NM??item.koreanName??item.korean_name??item.issueName??item.issue_name;
+   const rawCode=item.itemCode??item.itemcode??item.stockCode??item.stockcode??item.code??item.reutersCode??item.reuterscode??item.symbolCode??item.symbolcode??item.shortCode??item.shortcode??item.stockCodeValue??item.stock_code??item.isuCd??item.ISU_CD??item.stockId??item.stock_id??item.securityCode??item.security_code??item.itemCodeValue??item.item_code??item.codeValue??item.code_value??item.symbol??item.ticker;
+   const rawName=item.itemName??item.itemname??item.stockName??item.stockname??item.name??item.stockNm??item.stocknm??item.korName??item.korname??item.stockNmKr??item.stock_nm??item.isuNm??item.ISU_NM??item.koreanName??item.korean_name??item.issueName??item.issue_name??item.itemNameKr??item.item_name??item.displayName??item.display_name;
    let code=rawCode===undefined?'':String(rawCode).trim().replace(/^A/i,'').replace(/\.KS$|\.KQ$/i,'').replace(/\D/g,'');
    // ISIN 형태(KR7xxxx...)로 내려오는 경우 국내 6자리 종목코드를 추출한다.
    if(!/^\d{6}$/.test(code)&&/^KR7\d{9}$/.test(String(rawCode||'').trim().toUpperCase()))code=String(rawCode).trim().toUpperCase().slice(3,9);
@@ -326,10 +326,12 @@ async function loadQuickRanking(config){
   // v3 individual-stocks 응답은 일부 항목을 현재 파서가 종목으로 인식하지 못해 17개만 잡힐 수 있다.
   // 기본 국내시장 랭킹 API는 같은 priceTop 정렬을 지원하고 기존 Worker 허용 목록에도 포함되어 있다.
   const marketType=(config.id==='quick-volume')?'ALL':config.marketType;
-  const pageSize=config.pageSize||config.limit||20;
+  // 20개 화면을 만들기 위해 API에서 여유 있게 100개를 받아 파싱 누락에 대비한다.
+  // 거래대금 순위는 전체 응답의 종목 배열을 재귀 탐색하고, 응답 필드명이 다른 종목도 인식한다.
+  const pageSize=config.id==='quick-value'?100:(config.pageSize||config.limit||20);
   const url=`${DESKTOP}/api/domestic/market/stock/default?tradeType=KRX&marketType=${encodeURIComponent(marketType)}&orderType=${encodeURIComponent(config.orderType)}&startIdx=0&pageSize=${pageSize}`;
   data=await getJson(url);
-  ranked=collectQuickStocks(data);
+  ranked=config.id==='quick-value'?collectQuickStocksAllLists(data):collectQuickStocks(data);
   const required=config.limit||10;if(ranked.length<required)throw Error(`순위 응답에서 종목을 ${required}개 찾지 못했습니다 (${ranked.length}개)`);
   const unique=ranked.slice(0,config.limit||10);
   box.innerHTML=unique.map((x,i)=>`<button data-code="${x.code}" data-name="${escapeHtml(x.name)}" title="${escapeHtml(config.label)} ${i+1}위"><small>${i+1}</small>${escapeHtml(x.name)}</button>`).join('');
