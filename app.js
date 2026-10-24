@@ -286,19 +286,27 @@ function collectQuickStocks(root,out=[],seen=new Set()){
 const QUICK_RANKINGS=[
  {id:'quick-kospi-cap',label:'코스피 시가총액',marketType:'KOSPI',orderType:'marketSum'},
  {id:'quick-kosdaq-cap',label:'코스닥 시가총액',marketType:'KOSDAQ',orderType:'marketSum'},
- {id:'quick-value',label:'전체 거래대금 순 20개',marketType:'ALL',orderType:'priceTop',limit:20,pageSize:100},
+ {id:'quick-value',label:'전체 거래대금 순 20개',marketType:'ALL',orderType:'priceTop',limit:20},
  {id:'quick-volume',label:'거래량 전체',marketType:'ALL',orderType:'quantTop',limit:20}
 ];
 async function loadQuickRanking(config){
  const box=$(config.id);if(!box)return;
  box.innerHTML='<span class="quick-loading">불러오는 중…</span>';
  try{
-  const marketType=(config.id==='quick-value'||config.id==='quick-volume')?'ALL':config.marketType;
-  const pageSize=config.pageSize||100;
-  // 네이버 증권 거래대금 상위(priceTop) 화면의 '전체' 탭에 맞춰 ALL 시장만 요청한다.
-  const url=`${DESKTOP}/api/domestic/market/stock/default?tradeType=KRX&marketType=${encodeURIComponent(marketType)}&orderType=${encodeURIComponent(config.orderType)}&startIdx=0&pageSize=${pageSize}`;
-  const data=await getJson(url);
-  const ranked=collectQuickStocks(data);
+  let data,ranked;
+  if(config.id==='quick-value'){
+   // 네이버 증권 '거래대금 상위'의 전체 탭과 같은 통합 목록 API를 사용한다.
+   // index=0, size=20으로 상위 20개만 요청하므로 코스피/코스닥 목록을 합치지 않는다.
+   const url=`${DESKTOP}/api/stockSecurity/individual-stocks/v3/domestic?listingType=tradingValueDesc&exchangeType=consolidated&index=0&size=20`;
+   data=await getJson(url);
+   ranked=collectQuickStocks(data);
+  }else{
+   const marketType=(config.id==='quick-volume')?'ALL':config.marketType;
+   const pageSize=config.pageSize||100;
+   const url=`${DESKTOP}/api/domestic/market/stock/default?tradeType=KRX&marketType=${encodeURIComponent(marketType)}&orderType=${encodeURIComponent(config.orderType)}&startIdx=0&pageSize=${pageSize}`;
+   data=await getJson(url);
+   ranked=collectQuickStocks(data);
+  }
   const required=config.limit||10;if(ranked.length<required)throw Error(`순위 응답에서 종목을 ${required}개 찾지 못했습니다 (${ranked.length}개)`);
   const unique=ranked.slice(0,config.limit||10);
   box.innerHTML=unique.map((x,i)=>`<button data-code="${x.code}" data-name="${escapeHtml(x.name)}" title="${escapeHtml(config.label)} ${i+1}위"><small>${i+1}</small>${escapeHtml(x.name)}</button>`).join('');
