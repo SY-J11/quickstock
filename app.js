@@ -253,35 +253,41 @@ flowNxtPromise
 $('searchBtn').onclick=async()=>{const q=$('query').value.trim();if(!q)return;try{const r=await search(q);if(r.length===1)load(r[0].code,r[0].name);else showResults(r,q)}catch{const local=seed.filter(x=>x.name.toLowerCase().includes(q.toLowerCase())||x.code.startsWith(q));if(local.length===1)load(local[0].code,local[0].name);else showResults(local,q,'검색 API 오류. 6자리 종목코드로 검색해 주세요.')}};$('query').addEventListener('keydown',e=>{if(e.key==='Enter')$('searchBtn').click()});$('query').addEventListener('input',()=>{const q=$('query').value.trim();$('clear').hidden=!q;clearTimeout(timer);if(!q){$('results').hidden=true;return}timer=setTimeout(async()=>{try{showResults(await search(q),q)}catch{showResults(seed.filter(x=>x.name.toLowerCase().includes(q.toLowerCase())||x.code.startsWith(q)),q)}},350)});$('clear').onclick=()=>{$('query').value='';$('results').hidden=true;$('clear').hidden=true};$('theme').onclick=()=>document.body.classList.toggle('dark');$('refresh').onclick=()=>load(current.code,current.name);$('fav').onclick=()=>$('fav').textContent=$('fav').textContent==='☆'?'★':'☆';function findExactNumber(raw,keys){const wanted=new Set(keys.map(k=>k.toLowerCase()));for(const o of objects(raw)){for(const [k,v] of Object.entries(o)){if(!wanted.has(k.toLowerCase())||v===null||v===undefined||v==='')continue;const n=financeNum(v?.value??v?.formattedValue??v?.text??v?.displayValue??v?.amount??v);if(n!==null&&n>0)return n}}return null}
 async function quickCapForStock(x){try{const [basic,integration]=await Promise.all([first([`${API}/api/stock/${x.code}/basic`]),first([`${API}/api/stock/${x.code}/integration`])]);const currentPrice=findExactNumber(basic,['currentPrice','nowPrice','tradePrice','closePrice','dealPrice','stockPrice'])??findExactNumber(integration,['currentPrice','nowPrice','tradePrice','closePrice','dealPrice','stockPrice']);const shares=findExactNumber(basic,['listedShares','listedShareCount','totalListedShares','sharesOutstanding','totalShares','issuedShares','listedStockCount'])??findExactNumber(integration,['listedShares','listedShareCount','totalListedShares','sharesOutstanding','totalShares','issuedShares','listedStockCount']);if(currentPrice!==null&&shares!==null)return {...x,cap:currentPrice*shares/100000000,capSource:'currentPrice×listedShares'};const rawCap=metric(integration,['marketValue','marketCap','marketSum','marketCapitalization','marketCapital','시가총액'])??metric(basic,['marketValue','marketCap','marketSum','marketCapitalization','marketCapital','시가총액']);const cap=capToEok(rawCap);return cap!==null?{...x,cap,capSource:'apiMarketCap'}:null}catch{return null}}
 function collectQuickStocksAllLists(root,out=[],seen=new Set()){
- // API 응답 배열의 각 항목을 순위 순서대로 확인한다.
- // 종목 필드가 바로 있는 항목은 직접 읽고, wrapper 객체라면 그 안의 중첩 종목 객체를 탐색한다.
+ // 순위 응답에서 첫 번째 실제 종목 배열 하나만 사용한다. 여러 하위 배열을 합치면
+ // 다른 시장/보조 데이터가 섞여 원본 순위가 바뀔 수 있다.
  if(!root||typeof root!=='object')return out;
- if(Array.isArray(root)){
-  for(const item of root){
-   if(!item||typeof item!=='object')continue;
-   if(!Array.isArray(item)){
-    const rawCode=item.itemCode??item.itemcode??item.stockCode??item.stockcode??item.code??item.reutersCode??item.reuterscode??item.symbolCode??item.symbolcode??item.shortCode??item.shortcode??item.stockCodeValue??item.stock_code??item.isuCd??item.ISU_CD??item.stockId??item.stock_id??item.securityCode??item.security_code??item.itemCodeValue??item.item_code??item.codeValue??item.code_value??item.symbol??item.ticker??item.stockCode;
-    const rawName=item.itemName??item.itemname??item.stockName??item.stockname??item.name??item.stockNm??item.stocknm??item.korName??item.korname??item.stockNmKr??item.stock_nm??item.isuNm??item.ISU_NM??item.koreanName??item.korean_name??item.issueName??item.issue_name??item.itemNameKr??item.item_name??item.displayName??item.display_name??item.stockNameKr;
-    let code=rawCode===undefined?'':String(rawCode).trim().replace(/^A/i,'').replace(/\.KS$|\.KQ$/i,'').replace(/\D/g,'');
-    if(!/^\d{6}$/.test(code)&&/^KR7\d{9}$/.test(String(rawCode||'').trim().toUpperCase()))code=String(rawCode).trim().toUpperCase().slice(3,9);
-    const name=rawName===undefined?'':String(rawName).trim();
-    if(/^\d{6}$/.test(code)&&!seen.has(code)){
-     seen.add(code);
-     const capRaw=item.tradingValue??item.accAmount??item.priceTop??item.tradeValue??item.accumulatedTradingValue??item.marketValue??item.marketCap??item.marketSum??item.marketCapitalization??item.marketCapital??item.capitalization??item.marketValueText??item.marketCapValue;
-     out.push({name:name||code,code,cap:capToEok(capRaw),capSource:capRaw!==undefined?'rankingApi':'orderedRanking'});
-     continue;
-    }
-   }
-   // 종목 정보가 wrapper 안에 있는 경우에도 그 위치에서 재귀 탐색하여 순위 순서를 보존한다.
-   collectQuickStocksAllLists(item,out,seen);
+ const codeKeys=['itemCode','itemcode','stockCode','stockcode','code','reutersCode','reuterscode','symbolCode','symbolcode','shortCode','shortcode','stockCodeValue','stock_code','isuCd','ISU_CD','stockId','stock_id','securityCode','security_code','itemCodeValue','item_code','codeValue','code_value','symbol','ticker','issueCode','issue_code','localCode','local_code','stockItemCode'];
+ const nameKeys=['itemName','itemname','stockName','stockname','name','stockNm','stocknm','korName','korname','stockNmKr','stock_nm','isuNm','ISU_NM','koreanName','korean_name','issueName','issue_name','itemNameKr','item_name','displayName','display_name','stockNameKr','korStockName','securityName','security_name'];
+ function normalize(item){
+  let rawCode=null,rawName=null;
+  for(const k of codeKeys)if(item[k]!==undefined&&item[k]!==null&&String(item[k]).trim()){rawCode=item[k];break;}
+  for(const k of nameKeys)if(item[k]!==undefined&&item[k]!==null&&String(item[k]).trim()){rawName=item[k];break;}
+  let code=rawCode===null?'':String(rawCode).trim().toUpperCase();
+  code=code.replace(/^A(?=\d{6}$)/,'').replace(/\.KS$|\.KQ$/,'');
+  if(!/^\d{6}$/.test(code)){
+   const m=code.match(/(?:^|[^0-9])(\d{6})(?:$|[^0-9])/);code=m?m[1]:'';
   }
-  return out;
+  const name=rawName===null?'':String(rawName).trim();
+  if(!/^\d{6}$/.test(code)||!name)return null;
+  const capRaw=item.tradingValue??item.accAmount??item.priceTop??item.tradeValue??item.accumulatedTradingValue??item.marketValue??item.marketCap??item.marketSum??item.marketCapitalization??item.marketCapital??item.capitalization??item.marketValueText??item.marketCapValue;
+  return {name,code,cap:capToEok(capRaw),capSource:capRaw!==undefined?'rankingApi':'orderedRanking'};
  }
- // wrapper object는 서버가 반환한 키 순서대로 탐색한다.
- for(const [key,v] of Object.entries(root)){
-  if(!v||typeof v!=='object')continue;
-  collectQuickStocksAllLists(v,out,seen);
+ function findList(node,depth=0){
+  if(!node||typeof node!=='object'||depth>8)return null;
+  if(Array.isArray(node)){
+   const parsed=node.map(x=>x&&typeof x==='object'&&!Array.isArray(x)?normalize(x):null).filter(Boolean);
+   if(parsed.length>=10)return parsed;
+   // Wrapper 배열 안에서만 하위 응답을 찾되, 배열들을 합치지 않는다.
+   for(const item of node){const found=findList(item,depth+1);if(found&&found.length>=10)return found;}
+   return null;
+  }
+  const preferred=['items','stocks','stockList','stocklist','result','data','list','contents','rankings','rankingList','domesticStocks','stockItems'];
+  for(const key of preferred){if(node[key]&&typeof node[key]==='object'){const found=findList(node[key],depth+1);if(found&&found.length>=10)return found;}}
+  for(const [key,value] of Object.entries(node)){if(preferred.includes(key)||!value||typeof value!=='object')continue;const found=findList(value,depth+1);if(found&&found.length>=10)return found;}
+  return null;
  }
+ const found=findList(root);
+ if(found){for(const item of found){if(!seen.has(item.code)){seen.add(item.code);out.push(item);}}}
  return out;
 }
 function collectQuickStocks(root,out=[],seen=new Set()){
@@ -344,7 +350,7 @@ async function loadQuickRanking(config){
   // 네이버 화면 /market/stock/kr/stocklist/priceTop에서 사용하는 시장 랭킹 API와 같은 경로.
   // v3 individual-stocks 목록은 화면의 '전체 + 거래대금 상위'와 일치한다고 확인되지 않아 사용하지 않는다.
   const marketType=(config.id==='quick-volume')?'ALL':config.marketType;
-  const pageSize=config.pageSize||100;
+  const pageSize=config.id==='quick-value'?100:(config.pageSize||100);
   const url=`${DESKTOP}/api/domestic/market/stock/default?tradeType=KRX&marketType=${encodeURIComponent(marketType)}&orderType=${encodeURIComponent(config.orderType)}&startIdx=0&pageSize=${pageSize}`;
   data=await getJson(url);
   ranked=collectQuickStocksAllLists(data);
