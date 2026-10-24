@@ -370,4 +370,4 @@ async function loadQuickRanking(config){
  }
 }
 function loadQuickRankings(){QUICK_RANKINGS.forEach(config=>loadQuickRanking(config))}
-loadQuickRankings();$('name').textContent='종목을 검색하세요';$('code').textContent='';$('price').innerHTML='— <span id="change">종목을 선택하면 시세가 표시됩니다.</span>';$('status').textContent='종목명 또는 종목코드를 검색하거나 빠른 검색에서 선택하세요.';$('query').value='';$('refresh').onclick=()=>{if(current.code)load(current.code,current.name)};
+loadQuickRankings();$('name').textContent='종목을 검색하세요';$('code').textContent='';$('price').innerHTML='— <span id="change">종목을 선택하면 시세가 표시됩니다.</span>';$('status').textContent='';$('query').value='';$('refresh').onclick=()=>{if(current.code)load(current.code,current.name)};
