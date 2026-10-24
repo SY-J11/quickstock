@@ -323,6 +323,7 @@ function collectQuickStocks(root,out=[],seen=new Set()){
  return out;
 }
 const QUICK_RANKINGS=[
+ {id:'quick-all-cap',label:'전체 시가총액',marketType:'ALL',orderType:'marketSum',limit:20},
  {id:'quick-kospi-cap',label:'코스피 시가총액',marketType:'KOSPI',orderType:'marketSum'},
  {id:'quick-kosdaq-cap',label:'코스닥 시가총액',marketType:'KOSDAQ',orderType:'marketSum'},
  {id:'quick-value',label:'전체 거래대금 순 20개',marketType:'ALL',orderType:'priceTop',limit:20},
