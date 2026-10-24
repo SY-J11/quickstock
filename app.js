@@ -260,9 +260,9 @@ function collectQuickStocks(root,out=[],seen=new Set()){
   const direct=[];
   for(const item of root){
    if(!item||typeof item!=='object'||Array.isArray(item))continue;
-   const rawCode=item.itemCode??item.itemcode??item.stockCode??item.stockcode??item.code??item.reutersCode??item.reuterscode??item.symbolCode??item.symbolcode??item.shortCode??item.shortcode;
-   const rawName=item.itemName??item.itemname??item.stockName??item.stockname??item.name??item.stockNm??item.stocknm??item.korName??item.korname;
-   const code=rawCode===undefined?'':String(rawCode).trim().replace(/^A/i,'');
+   const rawCode=item.itemCode??item.itemcode??item.stockCode??item.stockcode??item.code??item.reutersCode??item.reuterscode??item.symbolCode??item.symbolcode??item.shortCode??item.shortcode??item.stockCodeValue??item.stock_code??item.isuCd??item.ISU_CD;
+   const rawName=item.itemName??item.itemname??item.stockName??item.stockname??item.name??item.stockNm??item.stocknm??item.korName??item.korname??item.stockNmKr??item.stock_nm??item.isuNm??item.ISU_NM;
+   const code=rawCode===undefined?'':String(rawCode).trim().replace(/^A/i,'').replace(/\D/g,'');
    const name=rawName===undefined?'':String(rawName).trim();
    if(/^\d{6}$/.test(code)&&name&&!seen.has(code)){
     seen.add(code);
@@ -286,7 +286,7 @@ function collectQuickStocks(root,out=[],seen=new Set()){
 const QUICK_RANKINGS=[
  {id:'quick-kospi-cap',label:'코스피 시가총액',marketType:'KOSPI',orderType:'marketSum'},
  {id:'quick-kosdaq-cap',label:'코스닥 시가총액',marketType:'KOSDAQ',orderType:'marketSum'},
- {id:'quick-value',label:'전체 거래대금 순 20개',marketType:'ALL',orderType:'priceTop',limit:20,pageSize:20},
+ {id:'quick-value',label:'전체 거래대금 순 20개',marketType:'ALL',orderType:'priceTop',limit:20,pageSize:100},
  {id:'quick-volume',label:'거래량 전체',marketType:'ALL',orderType:'quantTop',limit:20}
 ];
 async function loadQuickRanking(config){
@@ -304,7 +304,7 @@ async function loadQuickRanking(config){
   box.innerHTML=unique.map((x,i)=>`<button data-code="${x.code}" data-name="${escapeHtml(x.name)}" title="${escapeHtml(config.label)} ${i+1}위"><small>${i+1}</small>${escapeHtml(x.name)}</button>`).join('');
   box.querySelectorAll('button').forEach(b=>b.onclick=()=>load(b.dataset.code,b.dataset.name));
  }catch(e){
-  box.innerHTML='<span class="quick-loading">순위를 불러오지 못했습니다. 잠시 후 새로고침해 주세요.</span>';
+  box.innerHTML=`<span class="quick-loading">순위를 불러오지 못했습니다. 잠시 후 새로고침해 주세요.<br><small>${escapeHtml(String(e?.message||'조회 실패').slice(0,100))}</small></span>`;
   console.warn(`${config.label} 순위 조회 실패:`,e);
  }
 }
