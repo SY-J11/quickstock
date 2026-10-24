@@ -264,11 +264,12 @@ function collectQuickStocksAllLists(root,out=[],seen=new Set()){
   for(const k of nameKeys)if(item[k]!==undefined&&item[k]!==null&&String(item[k]).trim()){rawName=item[k];break;}
   let code=rawCode===null?'':String(rawCode).trim().toUpperCase();
   code=code.replace(/^A(?=\d{6}$)/,'').replace(/\.KS$|\.KQ$/,'');
-  if(!/^\d{6}$/.test(code)){
-   const m=code.match(/(?:^|[^0-9])(\d{6})(?:$|[^0-9])/);code=m?m[1]:'';
+  // 신규 상장 종목은 0015M0, 0158S0처럼 영문자가 포함된 6자리 코드를 사용한다.
+  if(!/^[0-9A-Z]{6}$/.test(code)){
+   const m=code.match(/(?:^|[^0-9A-Z])([0-9A-Z]{6})(?:$|[^0-9A-Z])/);code=m?m[1]:'';
   }
   const name=rawName===null?'':String(rawName).trim();
-  if(!/^\d{6}$/.test(code)||!name)return null;
+  if(!/^[0-9A-Z]{6}$/.test(code)||!name)return null;
   const capRaw=item.tradingValue??item.accAmount??item.priceTop??item.tradeValue??item.accumulatedTradingValue??item.marketValue??item.marketCap??item.marketSum??item.marketCapitalization??item.marketCapital??item.capitalization??item.marketValueText??item.marketCapValue;
   return {name,code,cap:capToEok(capRaw),capSource:capRaw!==undefined?'rankingApi':'orderedRanking'};
  }
@@ -300,9 +301,9 @@ function collectQuickStocks(root,out=[],seen=new Set()){
    if(!item||typeof item!=='object'||Array.isArray(item))continue;
    const rawCode=item.itemCode??item.itemcode??item.stockCode??item.stockcode??item.code??item.reutersCode??item.reuterscode??item.symbolCode??item.symbolcode??item.shortCode??item.shortcode??item.stockCodeValue??item.stock_code??item.isuCd??item.ISU_CD;
    const rawName=item.itemName??item.itemname??item.stockName??item.stockname??item.name??item.stockNm??item.stocknm??item.korName??item.korname??item.stockNmKr??item.stock_nm??item.isuNm??item.ISU_NM;
-   const code=rawCode===undefined?'':String(rawCode).trim().replace(/^A/i,'').replace(/\D/g,'');
+   const code=rawCode===undefined?'':String(rawCode).trim().toUpperCase().replace(/^A(?=\d{6}$)/,'');
    const name=rawName===undefined?'':String(rawName).trim();
-   if(/^\d{6}$/.test(code)&&!seen.has(code)){
+   if(/^[0-9A-Z]{6}$/.test(code)&&!seen.has(code)){
     seen.add(code);
     const capRaw=item.marketValue??item.marketCap??item.marketSum??item.marketCapitalization??item.marketCapital??item.capitalization??item.marketValueText??item.marketCapValue;
     direct.push({name:name||code,code,cap:capToEok(capRaw),capSource:capRaw!==undefined?'rankingApi':'orderedRanking'});
