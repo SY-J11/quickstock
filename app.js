@@ -321,6 +321,21 @@ const QUICK_RANKINGS=[
  {id:'quick-value',label:'전체 거래대금 순 20개',marketType:'ALL',orderType:'priceTop',limit:20},
  {id:'quick-volume',label:'거래량 전체',marketType:'ALL',orderType:'quantTop',limit:20}
 ];
+function summarizeQuickResponse(root){
+ const rows=[];const visited=new Set();
+ function walk(value,path,depth){
+  if(!value||typeof value!=="object"||depth>7||visited.has(value)||rows.length>=8)return;
+  visited.add(value);
+  if(Array.isArray(value)){
+   const first=value.find(x=>x&&typeof x==="object"&&!Array.isArray(x));
+   if(first)rows.push(`${path}[${value.length}] keys=${Object.keys(first).slice(0,12).join("/")}`);
+   value.slice(0,4).forEach((v,i)=>walk(v,`${path}[${i}]`,depth+1));
+  }else{
+   for(const [k,v] of Object.entries(value))if(v&&typeof v==="object")walk(v,path?`${path}.${k}`:k,depth+1);
+  }
+ }
+ walk(root,"root",0);return rows.join("; ").slice(0,650)||`type=${typeof root}`;
+}
 async function loadQuickRanking(config){
  const box=$(config.id);if(!box)return;
  box.innerHTML='<span class="quick-loading">불러오는 중…</span>';
@@ -329,11 +344,11 @@ async function loadQuickRanking(config){
   // 네이버 화면 /market/stock/kr/stocklist/priceTop에서 사용하는 시장 랭킹 API와 같은 경로.
   // v3 individual-stocks 목록은 화면의 '전체 + 거래대금 상위'와 일치한다고 확인되지 않아 사용하지 않는다.
   const marketType=(config.id==='quick-volume')?'ALL':config.marketType;
-  const pageSize=config.pageSize||config.limit||20;
+  const pageSize=config.pageSize||100;
   const url=`${DESKTOP}/api/domestic/market/stock/default?tradeType=KRX&marketType=${encodeURIComponent(marketType)}&orderType=${encodeURIComponent(config.orderType)}&startIdx=0&pageSize=${pageSize}`;
   data=await getJson(url);
-  ranked=collectQuickStocks(data);
-  const required=config.limit||10;if(ranked.length<required)throw Error(`순위 응답에서 종목을 ${required}개 찾지 못했습니다 (${ranked.length}개)`);
+  ranked=collectQuickStocksAllLists(data);
+  const required=config.limit||10;if(ranked.length<required){const diag=`종목 ${required}개 중 ${ranked.length}개 추출. 응답 구조: ${summarizeQuickResponse(data)}`;throw Error(diag)}
   const unique=ranked.slice(0,config.limit||10);
   box.innerHTML=unique.map((x,i)=>`<button data-code="${x.code}" data-name="${escapeHtml(x.name)}" title="${escapeHtml(config.label)} ${i+1}위"><small>${i+1}</small>${escapeHtml(x.name)}</button>`).join('');
   box.querySelectorAll('button').forEach(b=>b.onclick=()=>load(b.dataset.code,b.dataset.name));
