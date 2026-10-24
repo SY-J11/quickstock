@@ -323,8 +323,8 @@ async function loadQuickRanking(config){
   let data,ranked;
   if(config.id==='quick-value'){
    // 네이버 증권 '거래대금 상위'의 전체 탭과 같은 통합 목록 API를 사용한다.
-   // index=0, size=20으로 상위 20개만 요청하므로 코스피/코스닥 목록을 합치지 않는다.
-   const url=`${DESKTOP}/api/stockSecurity/individual-stocks/v3/domestic?listingType=tradingValueDesc&exchangeType=consolidated&index=0&size=100`;
+   // 화면의 KRX + 전체 + 거래대금 상위 설정과 동일하게 KRX, 전체 통합 목록, 상위 20개를 요청한다.
+   const url=`${DESKTOP}/api/stockSecurity/individual-stocks/v3/domestic?listingType=tradingValueDesc&exchangeType=KRX&index=0&size=20`;
    data=await getJson(url);
    ranked=collectQuickStocks(data);
    if(ranked.length<20)ranked=collectQuickStocksAllLists(data,[],new Set());
