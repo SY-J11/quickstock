@@ -33,3 +33,7 @@
 .favorite-chip .favorite-remove{padding:3px 7px!important;border-left:1px solid var(--line)!important;color:var(--muted)!important;font-size:13px!important}
 .favorite-chip button:active{opacity:.65}
 @media(max-width:420px){.favorite-chip .favorite-load{font-size:8px!important;padding:5px 6px!important}.favorite-chip .favorite-remove{padding:3px 6px!important}}
+
+
+/* 종목명·현재가 아래 일봉 차트 */
+.daily-chart-card{padding:11px 10px 8px;margin-bottom:7px;overflow:hidden}.daily-chart-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}.daily-chart-heading b{font-size:12px}.daily-chart-heading span{font-size:9px;color:var(--muted)}.daily-chart{width:100%;height:190px;overflow:hidden}.daily-candle-svg{display:block;width:100%;height:190px;overflow:hidden}.daily-grid-line{stroke:var(--line);stroke-width:1;stroke-dasharray:3 3}.daily-axis-text{font-size:9px;fill:var(--muted)}@media(max-width:420px){.daily-chart,.daily-candle-svg{height:170px}}
