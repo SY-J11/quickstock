@@ -436,6 +436,9 @@ function parseMinuteRows(raw){
  let rows=Array.isArray(raw)?raw:null;
  if(typeof raw==='string'){
   try{const parsed=JSON.parse(raw);if(Array.isArray(parsed))rows=parsed;else{for(const o of objects(parsed)){for(const v of Object.values(o)){if(Array.isArray(v)&&v.length) {rows=v;break}}if(rows)break}}}catch{}
+  // siseJson.naver는 엄격한 JSON이 아니라 작은따옴표를 쓰는 배열 문자열을 반환합니다.
+  // 응답 전체를 배열로 파싱해야 한 줄짜리 응답도 정상 처리됩니다.
+  if(!rows){try{const parsed=JSON.parse(raw.trim().replace(/'/g,'\"'));if(Array.isArray(parsed))rows=parsed}catch{}}
   if(!rows){rows=[];for(const line of raw.split(/\r?\n/)){const cells=line.trim().replace(/^\[|\]$/g,'').split(/\s*,\s*/).map(x=>x.replace(/^['"]|['"]$/g,''));if(cells.length<5)continue;const stamp=String(cells[0]).replace(/\D/g,'');if(stamp.length>=12)rows.push(cells)}}
  }
  if(!rows){for(const o of objects(raw)){for(const v of Object.values(o)){if(Array.isArray(v)&&v.length){rows=v;break}}if(rows)break}}
