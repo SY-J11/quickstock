@@ -372,26 +372,26 @@ function priceHistoryMap(raw){const map=new Map();const list=Array.isArray(raw)?
 function renderDailyChart(raw){
  const host=$('dailyChart');if(!host)return;
  const list=(Array.isArray(raw)?raw:objects(raw)).filter(x=>x&&typeof x==='object').map(x=>{
-  const date=String(x.localTradedAt??x.tradeDate??x.date??x.bizdate??x.trdDt??x.bizDate??x.tradingDate??x.tradeDateYmd??x.stckBsopDate??x.ymd??x.dt??'').replace(/\D/g,'').slice(0,8);
-  const close=num(x.closePrice??x.currentPrice??x.nowPrice??x.tradePrice??x.close??x.stckClpr??x.clpr??x.closingPrice??x.lastPrice);
-  const open=num(x.openPrice??x.open??x.stckOprc??x.openingPrice??x.oprc)??close;
-  const high=num(x.highPrice??x.high??x.stckHgpr??x.highestPrice??x.hgpr)??Math.max(open,close);
-  const low=num(x.lowPrice??x.low??x.stckLwpr??x.lowestPrice??x.lwpr)??Math.min(open,close);
+  const date=String(x.localTradedAt??x.tradeDate??x.date??x.bizdate??x.trdDt??'').replace(/\D/g,'').slice(0,8);
+  const close=num(x.closePrice??x.currentPrice??x.nowPrice??x.tradePrice??x.close??x.stckClpr);
+  const open=num(x.openPrice??x.open??x.stckOprc??x.openingPrice)??close;
+  const high=num(x.highPrice??x.high??x.stckHgpr??x.highestPrice)??Math.max(open,close);
+  const low=num(x.lowPrice??x.low??x.stckLwpr??x.lowestPrice)??Math.min(open,close);
   return {date,open,high,low,close};
  }).filter(x=>x.date&&x.close!==null&&x.open!==null&&x.high!==null&&x.low!==null);
  const byDate=new Map();for(const x of list)byDate.set(x.date,x);
  const data=[...byDate.values()].sort((a,b)=>a.date.localeCompare(b.date)).slice(-120);
  if(!data.length){host.innerHTML='<div class="chart-empty">일봉 데이터를 불러오지 못했습니다.</div>';return;}
- const W=700,H=190,left=8,right=100,top=8,bottom=24,plotW=W-left-right,plotH=H-top-bottom;
+ const W=700,H=190,left=8,right=54,top=8,bottom=24,plotW=W-left-right,plotH=H-top-bottom;
  let min=Math.min(...data.map(x=>x.low)),max=Math.max(...data.map(x=>x.high));if(min===max){min*=.99;max*=1.01}const pad=(max-min)*.06;min-=pad;max+=pad;
  const y=v=>top+(max-v)/(max-min)*plotH,step=plotW/data.length,cw=Math.max(2,Math.min(7,step*.58));
  const grid=[0,.25,.5,.75,1].map(t=>{const val=max-(max-min)*t,yy=top+plotH*t;return `<line class="daily-grid-line" x1="${left}" y1="${yy}" x2="${W-right}" y2="${yy}"/><text class="daily-axis-text" x="${W-right+5}" y="${yy+3}" text-anchor="start">${Math.round(val).toLocaleString('ko-KR')}</text>`}).join('');
  const maPeriods=[5,10,20,40,60];
  const maColors={5:'#e53935',10:'#fb8c00',20:'#fdd835',40:'#43a047',60:'#00acc1'};
- const movingAverages=maPeriods.map(period=>{if(data.length<period)return '';const points=[];let sum=0;for(let i=0;i<data.length;i++){sum+=data[i].close;if(i>=period)sum-=data[i-period].close;if(i>=period-1){const avg=sum/period;points.push(`${(left+(i+.5)*step).toFixed(2)},${y(avg).toFixed(2)}`)}}return `<polyline points="${points.join(' ')}" fill="none" stroke="${maColors[period]}" stroke-width="0.9" opacity="0.28" stroke-linejoin="round" stroke-linecap="round"/>`}).join('');
+ const movingAverages=maPeriods.map(period=>{if(data.length<period)return '';const points=[];let sum=0;for(let i=0;i<data.length;i++){sum+=data[i].close;if(i>=period)sum-=data[i-period].close;if(i>=period-1){const avg=sum/period;points.push(`${(left+(i+.5)*step).toFixed(2)},${y(avg).toFixed(2)}`)}}return `<polyline points="${points.join(' ')}" fill="none" stroke="${maColors[period]}" stroke-width="0.9" opacity="0.32" stroke-linejoin="round" stroke-linecap="round"/>`}).join('');
  const candles=data.map((d,i)=>{const x=left+(i+.5)*step,up=d.close>=d.open,color=up?'#df5967':'#3979d8',bodyY=Math.min(y(d.open),y(d.close)),bodyH=Math.max(1,Math.abs(y(d.open)-y(d.close)));return `<line x1="${x}" y1="${y(d.high)}" x2="${x}" y2="${y(d.low)}" stroke="${color}" stroke-width="1"/><rect x="${x-cw/2}" y="${bodyY}" width="${cw}" height="${bodyH}" fill="${color}"/>`}).join('');
  const labels=[0,Math.floor((data.length-1)/2),data.length-1].filter((v,i,a)=>a.indexOf(v)===i).map(i=>{const d=data[i],x=left+(i+.5)*step;return `<text class="daily-axis-text" x="${x}" y="${H-6}" text-anchor="middle">${d.date.slice(4,6)}.${d.date.slice(6,8)}</text>`}).join('');
- host.innerHTML=`<div class="daily-ma-legend">${maPeriods.map(p=>`<span style="color:${maColors[p]}"><i style="display:inline-block;width:13px;border-top:2px solid ${maColors[p]};vertical-align:middle;margin-right:3px"></i>${p}일</span>`).join('')}</div><svg class="daily-candle-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="최근 120거래일 일봉 캔들 및 5, 10, 20, 40, 60일 이동평균선 차트">${grid}${candles}${movingAverages}${labels}</svg>`;
+ host.innerHTML=`<div class="daily-ma-legend">${maPeriods.map(p=>`<span style="color:${maColors[p]}"><i style="display:inline-block;width:13px;border-top:2px solid ${maColors[p]};vertical-align:middle;margin-right:3px"></i>${p}일</span>`).join('')}</div><svg class="daily-candle-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="일봉 캔들 및 5, 10, 20, 40, 60일 이동평균선 차트">${grid}${candles}${movingAverages}${labels}</svg>`;
  const range=$('dailyChartRange');if(range)range.textContent=`${data[0].date.slice(0,4)}.${data[0].date.slice(4,6)}.${data[0].date.slice(6,8)} – ${data[data.length-1].date.slice(0,4)}.${data[data.length-1].date.slice(4,6)}.${data[data.length-1].date.slice(6,8)}`;
 }
 function sharesText(value){if(value===null||value===undefined)return '자료 없음';const sign=value>0?'+':value<0?'−':'';return `${sign}${Math.round(Math.abs(value)).toLocaleString('ko-KR')}주`}
@@ -405,7 +405,7 @@ first([`${API}/api/stock/${code}/basic`]),
 first([`${API}/api/stock/${code}/integration`]),
 first([`${API}/api/stock/${code}/finance/quarter`]),
 loadAnnualData(code),
-first([`${API}/api/stock/${code}/price?pageSize=120&page=1`]),
+first([`${API}/api/stock/${code}/price?pageSize=60&page=1`]),
 first([`${DESKTOP}/api/domestic/detail/${code}/consensus`]),
 flowKrxPromise,
 flowNxtPromise,
