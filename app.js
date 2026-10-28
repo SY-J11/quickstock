@@ -468,7 +468,7 @@ async function loadMinuteChart(interval){
  try{
   // 네이버의 분 단위 원시 차트를 요청하고, 3/5/10/15/30/60분봉은 1분봉을 로컬에서 집계한다.
   // 네이버의 외부 차트 API는 시작일/종료일과 requestType=1을 사용하는 CSV 응답 경로를 사용한다.
-  const url=`${API}/front-api/v1/external/chart/domestic/info?symbol=${code}&requestType=0&count=500&timeframe=minute`;
+  const url=`https://api.finance.naver.com/siseJson.naver?symbol=${code}&requestType=0&count=500&timeframe=minute`;
   const raw=await getText(url);const rows=parseMinuteRows(raw);
   if(rows.length<2)throw Error('네이버 분봉 원시 데이터가 비어 있습니다');
   const candles=aggregateMinuteRows(rows,minuteChartInterval);if(!candles.length)throw Error('분봉 집계 결과가 비어 있습니다');
