@@ -399,8 +399,8 @@ function renderDailyChart(raw,period=dailyChartPeriod){
   const low=num(x.lowPrice??x.low??x.stckLwpr??x.lowestPrice)??Math.min(open,close);
   return {date,open,high,low,close};
  }).filter(x=>x.date&&x.close!==null&&x.open!==null&&x.high!==null&&x.low!==null);
- const byDate=new Map();for(const x of list)byDate.set(period==='minute'?x.date:x.date.slice(0,8),x);
- const data=[...byDate.values()].sort((a,b)=>a.date.localeCompare(b.date)).slice(period==='minute'?-120:-200);
+ const byDate=new Map();for(const x of list)byDate.set(x.date,x);
+ const data=[...byDate.values()].sort((a,b)=>a.date.localeCompare(b.date)).slice(-200);
  if(!data.length){host.innerHTML=`<div class="chart-empty">${({day:'일봉',week:'주봉',month:'월봉',year:'년봉',minute:'1분봉'}[period]||'차트')} 데이터를 불러오지 못했습니다.</div>`;return;}
  const W=700,H=190,left=8,right=54,top=8,bottom=24,plotW=W-left-right,plotH=H-top-bottom;
  let min=Math.min(...data.map(x=>x.low)),max=Math.max(...data.map(x=>x.high));if(min===max){min*=.99;max*=1.01}const pad=(max-min)*.06;min-=pad;max+=pad;
@@ -410,7 +410,7 @@ function renderDailyChart(raw,period=dailyChartPeriod){
  const maColors={5:'#e53935',10:'#fb8c00',20:'#fdd835',40:'#43a047',60:'#00acc1',120:'#8e24aa'};
  const movingAverages=maPeriods.map(period=>{if(data.length<period)return '';const points=[];let sum=0;for(let i=0;i<data.length;i++){sum+=data[i].close;if(i>=period)sum-=data[i-period].close;if(i>=period-1){const avg=sum/period;points.push(`${(left+(i+.5)*step).toFixed(2)},${y(avg).toFixed(2)}`)}}return `<polyline points="${points.join(' ')}" fill="none" stroke="${maColors[period]}" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"/>`}).join('');
  const candles=data.map((d,i)=>{const x=left+(i+.5)*step,up=d.close>=d.open,color=up?'#df5967':'#3979d8',bodyY=Math.min(y(d.open),y(d.close)),bodyH=Math.max(1,Math.abs(y(d.open)-y(d.close)));return `<line x1="${x}" y1="${y(d.high)}" x2="${x}" y2="${y(d.low)}" stroke="${color}" stroke-width="1"/><rect x="${x-cw/2}" y="${bodyY}" width="${cw}" height="${bodyH}" fill="${color}"/>`}).join('');
- const labels=[0,Math.floor((data.length-1)/2),data.length-1].filter((v,i,a)=>a.indexOf(v)===i).map(i=>{const d=data[i],x=left+(i+.5)*step;return `<text class="daily-axis-text" x="${x}" y="${H-6}" text-anchor="middle">${period==='minute'?d.date.slice(8,10)+':'+d.date.slice(10,12):d.date.slice(4,6)+'.'+d.date.slice(6,8)}</text>`}).join('');
+ const labels=[0,Math.floor((data.length-1)/2),data.length-1].filter((v,i,a)=>a.indexOf(v)===i).map(i=>{const d=data[i],x=left+(i+.5)*step;return `<text class="daily-axis-text" x="${x}" y="${H-6}" text-anchor="middle">${d.date.slice(4,6)}.${d.date.slice(6,8)}${period==='minute'&&d.date.length>=12?' '+d.date.slice(8,10)+':'+d.date.slice(10,12):''}</text>`}).join('');
  host.innerHTML=`<div class="daily-ma-legend">${maPeriods.map(p=>`<span style="color:${maColors[p]}"><i style="display:inline-block;width:13px;border-top:1px solid ${maColors[p]};vertical-align:middle;margin-right:3px"></i>${p}${period==='minute'?'분':period==='day'?'일':period==='week'?'주':period==='month'?'월':'년'}</span>`).join('')}</div><svg class="daily-candle-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${({day:'일봉',week:'주봉',month:'월봉',year:'년봉',minute:'1분봉'}[period]||'주가')} 캔들 및 이동평균선 차트">${grid}${candles}${movingAverages}${labels}</svg>`;
  const range=$('dailyChartRange');if(range)range.textContent=period==='minute'?`${data[0].date.slice(0,4)}.${data[0].date.slice(4,6)}.${data[0].date.slice(6,8)} ${data[0].date.slice(8,10)}:${data[0].date.slice(10,12)} – ${data[data.length-1].date.slice(8,10)}:${data[data.length-1].date.slice(10,12)}`:`${data[0].date.slice(0,4)}.${data[0].date.slice(4,6)}.${data[0].date.slice(6,8)} – ${data[data.length-1].date.slice(0,4)}.${data[data.length-1].date.slice(4,6)}.${data[data.length-1].date.slice(6,8)}`;
 }
@@ -418,29 +418,19 @@ function sharesText(value){if(value===null||value===undefined)return '자료 없
 function foreignCountHtml(f,showBoth=false){if(f.count===null)return '자료 없음';return f.periods.map(p=>{const threshold=p.period===5?3:p.period===20?12:15;const hot=p.count>=threshold;const color=hot?'#df5967':'';const sharesColor=p.shares===null?'':p.shares>0?'#df5967':p.shares<0?'#3979d8':'';const ratioDisplay=Number.isFinite(p.ratio)?`${p.ratio.toFixed(2)}%`:'-%';const ratioColor=Number.isFinite(p.ratio)?(p.ratio<0?'#3979d8':p.ratio>=1?'#df5967':'#000000'):'#000000';const countText=showBoth?`${p.count}<span style="color:#000000">(${p.bothCount||0})</span>`:p.count;return `<span class="flow-period"><span class="flow-count" style="${color?`color:${color};font-weight:800`:''}">${countText}</span><span class="flow-suffix">/${p.period}일</span> <span class="flow-shares" style="${sharesColor?`color:${sharesColor};font-weight:750`:''}">[${sharesText(p.shares)} <span style="color:${ratioColor}">(${ratioDisplay})</span>]</span></span>`}).join('')}
 function normalizeCandleRows(raw){
  const list=(Array.isArray(raw)?raw:objects(raw)).filter(x=>x&&typeof x==='object').map(x=>{
-  const date=String(x.localTradedAt??x.tradeDate??x.date??x.bizdate??x.trdDt??'').replace(/\D/g,'').slice(0,period==='minute'?12:8);
+  const date=String(x.localTradedAt??x.tradeDate??x.date??x.bizdate??x.trdDt??'').replace(/\D/g,'').slice(0,8);
   const close=num(x.closePrice??x.currentPrice??x.nowPrice??x.tradePrice??x.close??x.stckClpr);
   const open=num(x.openPrice??x.open??x.stckOprc??x.openingPrice)??close;
   const high=num(x.highPrice??x.high??x.stckHgpr??x.highestPrice)??Math.max(open,close);
   const low=num(x.lowPrice??x.low??x.stckLwpr??x.lowestPrice)??Math.min(open,close);
   return {date,open,high,low,close};
  }).filter(x=>x.date&&x.close!==null&&x.open!==null&&x.high!==null&&x.low!==null);
- const byDate=new Map();for(const x of list)byDate.set(period==='minute'?x.date:x.date.slice(0,8),x);return [...byDate.values()].sort((a,b)=>a.date.localeCompare(b.date));
+ const byDate=new Map();for(const x of list)byDate.set(x.date,x);return [...byDate.values()].sort((a,b)=>a.date.localeCompare(b.date));
 }
 function aggregateCandles(rows,period){
  if(period==='day')return rows.slice(-120);
  const buckets=new Map();for(const d of rows){let key=period==='year'?d.date.slice(0,4):period==='month'?d.date.slice(0,6):(()=>{const dt=new Date(Number(d.date.slice(0,4)),Number(d.date.slice(4,6))-1,Number(d.date.slice(6,8)));const start=new Date(dt);start.setDate(start.getDate()-((start.getDay()+6)%7));return start.getFullYear()+String(start.getMonth()+1).padStart(2,'0')+String(start.getDate()).padStart(2,'0')})();if(!buckets.has(key))buckets.set(key,{date:d.date,open:d.open,high:d.high,low:d.low,close:d.close});else{const b=buckets.get(key);b.high=Math.max(b.high,d.high);b.low=Math.min(b.low,d.low);b.close=d.close;b.date=d.date}}
  return [...buckets.values()].sort((a,b)=>a.date.localeCompare(b.date)).slice(-(period==='week'?120:period==='month'?120:80));
-}
-async function loadMinutePrices(code){
- const url=`https://api.finance.naver.com/siseJson.naver?symbol=${code}&requestType=0&count=120&timeframe=minute`;
- const raw=await getText(url);
- // 네이버 siseJson은 JSON이 아닌 작은따옴표 배열 텍스트를 반환할 수 있음.
- let rows=[];try{rows=JSON.parse(raw.replace(/'/g,'"'))}catch{}
- if(!Array.isArray(rows)){const matches=[...raw.matchAll(/\[\s*['"]?(\d{12,14})['"]?\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)/g)];rows=matches.map(m=>[m[1],m[2],m[3],m[4],m[5]])}
- const body=Array.isArray(rows[0])&&/날짜|date/i.test(String(rows[0][0]))?rows.slice(1):rows;
- const candles=body.map(r=>{const d=String(r[0]??'').replace(/\D/g,'');return {date:d.length>=12?d.slice(0,12):'',open:num(r[1]),high:num(r[2]),low:num(r[3]),close:num(r[4])}}).filter(x=>/^\d{12}$/.test(x.date)&&[x.open,x.high,x.low,x.close].every(v=>v!==null)).sort((a,b)=>a.date.localeCompare(b.date));
- if(candles.length<2)throw Error('분봉 응답에 유효한 캔들이 없습니다');return candles.slice(-120);
 }
 async function loadChartPeriod(period){
  if(!current.code)return;
@@ -451,8 +441,14 @@ async function loadChartPeriod(period){
  host.innerHTML='<div class="chart-empty">차트 데이터를 불러오는 중…</div>';$('dailyChartRange').textContent='조회 중…';
  try{
   let raw;
-  if(period==='minute')raw=await loadMinutePrices(code);
-  else if(period==='day')raw=await loadDailyPrices120(code);
+  if(period==='minute') {
+   const text=await getText(`https://api.finance.naver.com/siseJson.naver?symbol=${code}&requestType=0&count=120&timeframe=minute`);
+   let arr;try{arr=JSON.parse(text)}catch{arr=JSON.parse(text.replace(/'/g,'\"'))}
+   if(!Array.isArray(arr))throw Error('분봉 응답 형식 오류');
+   const rows=arr.slice(1).map(r=>{if(!Array.isArray(r))return null;const stamp=String(r[0]??'').replace(/\D/g,'');return stamp.length>=12?{date:stamp.slice(0,12),open:num(r[1]),high:num(r[2]),low:num(r[3]),close:num(r[4])}:null}).filter(x=>x&&x.open!==null&&x.high!==null&&x.low!==null&&x.close!==null);
+   if(rows.length<2)throw Error('1분봉 데이터가 비어 있습니다');
+   const candles=rows.sort((a,b)=>a.date.localeCompare(b.date)).slice(-120);dailyChartCache.set(code+'-minute',candles);if(request===dailyChartRequest&&code===current.code)renderDailyChart(candles,'minute');return;
+  } else if(period==='day')raw=await loadDailyPrices120(code);
   else{
    // 네이버 가격 API에서 periodType/timeframe/interval 파라미터는 지원되지 않을 수 있다.
    // 이미 정상 작동하는 pageSize=60&page=N 방식으로 필요한 일봉 이력을 탭을 눌렀을 때만 조회하고 집계한다.
@@ -465,7 +461,7 @@ async function loadChartPeriod(period){
    if(!rows.length)throw Error('일봉 가격 API 응답이 비어 있습니다');
    raw=aggregateCandles(rows,period);
   }
-  const candles=period==='minute'?raw:(period==='day'?normalizeCandleRows(raw).slice(-120):aggregateCandles(normalizeCandleRows(raw),period));
+  const candles=period==='day'?normalizeCandleRows(raw).slice(-120):aggregateCandles(normalizeCandleRows(raw),period);
   if(!candles.length)throw Error('가격 데이터 없음');dailyChartCache.set(code+'-'+period,candles);if(request===dailyChartRequest&&code===current.code)renderDailyChart(candles,period);
  }catch(e){if(request===dailyChartRequest){host.innerHTML=`<div class="chart-empty">${titles[period]} 데이터를 불러오지 못했습니다. 다시 탭을 눌러 시도해 주세요.</div>`;$('dailyChartRange').textContent='조회 실패'}}
 }
