@@ -434,8 +434,11 @@ function aggregateCandles(rows,period){
 }
 function parseMinuteRows(raw){
  let rows=Array.isArray(raw)?raw:null;
- if(!rows&&typeof raw==='string'){try{rows=JSON.parse(raw)}catch{}}
- if(!rows){for(const o of objects(raw)){for(const v of Object.values(o)){if(Array.isArray(v)&&v.length&&Array.isArray(v[0])){rows=v;break}}if(rows)break}}
+ if(typeof raw==='string'){
+  try{const parsed=JSON.parse(raw);if(Array.isArray(parsed))rows=parsed;else{for(const o of objects(parsed)){for(const v of Object.values(o)){if(Array.isArray(v)&&v.length) {rows=v;break}}if(rows)break}}}catch{}
+  if(!rows){rows=[];for(const line of raw.split(/\r?\n/)){const cells=line.trim().replace(/^\[|\]$/g,'').split(/\s*,\s*/).map(x=>x.replace(/^['"]|['"]$/g,''));if(cells.length<5)continue;const stamp=String(cells[0]).replace(/\D/g,'');if(stamp.length>=12)rows.push(cells)}}
+ }
+ if(!rows){for(const o of objects(raw)){for(const v of Object.values(o)){if(Array.isArray(v)&&v.length){rows=v;break}}if(rows)break}}
  if(!Array.isArray(rows))return [];
  const out=[];
  for(const r of rows){
@@ -464,8 +467,11 @@ async function loadMinuteChart(interval){
  host.innerHTML='<div class="chart-empty">분봉 차트 데이터를 불러오는 중…</div>';$('dailyChartRange').textContent='조회 중…';
  try{
   // 네이버의 분 단위 원시 차트를 요청하고, 3/5/10/15/30/60분봉은 1분봉을 로컬에서 집계한다.
-  const url=`${API}/front-api/v1/external/chart/domestic/info?symbol=${code}&requestType=0&timeframe=minute&count=500`;
-  const raw=await first([url]);const rows=parseMinuteRows(raw);
+  // 네이버의 외부 차트 API는 시작일/종료일과 requestType=1을 사용하는 CSV 응답 경로를 사용한다.
+  const end=new Date(),start=new Date(end);start.setDate(start.getDate()-7);
+  const ymd=d=>`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+  const url=`${API}/front-api/v1/external/chart/domestic/info?symbol=${code}&requestType=1&startTime=${ymd(start)}&endTime=${ymd(end)}&timeframe=minute`;
+  const raw=await getText(url);const rows=parseMinuteRows(raw);
   if(rows.length<2)throw Error('네이버 분봉 원시 데이터가 비어 있습니다');
   const candles=aggregateMinuteRows(rows,minuteChartInterval);if(!candles.length)throw Error('분봉 집계 결과가 비어 있습니다');
   dailyChartCache.set(key,candles);if(request===dailyChartRequest&&code===current.code)renderDailyChart(candles,'minute');
