@@ -380,7 +380,7 @@ function renderDailyChart(raw){
   return {date,open,high,low,close};
  }).filter(x=>x.date&&x.close!==null&&x.open!==null&&x.high!==null&&x.low!==null);
  const byDate=new Map();for(const x of list)byDate.set(x.date,x);
- const data=[...byDate.values()].sort((a,b)=>a.date.localeCompare(b.date)).slice(-120);
+ const data=[...byDate.values()].sort((a,b)=>a.date.localeCompare(b.date)).slice(-200);
  if(!data.length){host.innerHTML='<div class="chart-empty">일봉 데이터를 불러오지 못했습니다.</div>';return;}
  const W=700,H=190,left=8,right=54,top=8,bottom=24,plotW=W-left-right,plotH=H-top-bottom;
  let min=Math.min(...data.map(x=>x.low)),max=Math.max(...data.map(x=>x.high));if(min===max){min*=.99;max*=1.01}const pad=(max-min)*.06;min-=pad;max+=pad;
@@ -405,7 +405,7 @@ first([`${API}/api/stock/${code}/basic`]),
 first([`${API}/api/stock/${code}/integration`]),
 first([`${API}/api/stock/${code}/finance/quarter`]),
 loadAnnualData(code),
-first([`${API}/api/stock/${code}/price?pageSize=120&page=1`]),
+first([`${API}/api/stock/${code}/price?pageSize=60&page=1`]),
 first([`${DESKTOP}/api/domestic/detail/${code}/consensus`]),
 flowKrxPromise,
 flowNxtPromise,
