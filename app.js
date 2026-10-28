@@ -443,10 +443,16 @@ async function loadChartPeriod(period){
   let raw;
   if(period==='day')raw=await loadDailyPrices120(code);
   else{
-   const size=period==='year'?120:120;
-   const candidates=[`${API}/api/stock/${code}/price?pageSize=${size}&page=1&periodType=${period}`,`${API}/api/stock/${code}/price?pageSize=${size}&page=1&timeframe=${period}`,`${API}/api/stock/${code}/price?pageSize=${size}&page=1&interval=${period}`];
-   for(const url of candidates){try{const candidate=await first([url]);const rows=normalizeCandleRows(candidate);if(rows.length>1){raw=rows;break}}catch{}}
-   if(!raw){const p1=await first([`${API}/api/stock/${code}/price?pageSize=120&page=1`]);let rows=normalizeCandleRows(p1);if(rows.length<120){const p2=await first([`${API}/api/stock/${code}/price?pageSize=60&page=2`]).catch(()=>null);if(p2)rows=normalizeCandleRows([...rows,...(Array.isArray(p2)?p2:objects(p2))])}raw=aggregateCandles(rows,period)}
+   // 네이버 가격 API에서 periodType/timeframe/interval 파라미터는 지원되지 않을 수 있다.
+   // 이미 정상 작동하는 pageSize=60&page=N 방식으로 필요한 일봉 이력을 탭을 눌렀을 때만 조회하고 집계한다.
+   const pageCounts={week:10,month:48,year:120};
+   const pageNumbers=Array.from({length:pageCounts[period]||10},(_,i)=>i+1);
+   const pageResults=await Promise.all(pageNumbers.map(page=>first([`${API}/api/stock/${code}/price?pageSize=60&page=${page}`]).catch(()=>null)));
+   const mergedByDate=new Map();
+   for(const pageData of pageResults){if(!pageData)continue;for(const candle of normalizeCandleRows(pageData))mergedByDate.set(candle.date,candle)}
+   const rows=[...mergedByDate.values()].sort((a,b)=>a.date.localeCompare(b.date));
+   if(!rows.length)throw Error('일봉 가격 API 응답이 비어 있습니다');
+   raw=aggregateCandles(rows,period);
   }
   const candles=period==='day'?normalizeCandleRows(raw).slice(-120):aggregateCandles(normalizeCandleRows(raw),period);
   if(!candles.length)throw Error('가격 데이터 없음');dailyChartCache.set(code+'-'+period,candles);if(request===dailyChartRequest&&code===current.code)renderDailyChart(candles,period);
