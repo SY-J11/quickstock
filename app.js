@@ -392,7 +392,7 @@ function priceHistoryMap(raw){const map=new Map();const list=Array.isArray(raw)?
 function renderDailyChart(raw,period=dailyChartPeriod){
  const host=$('dailyChart');if(!host)return;
  const list=(Array.isArray(raw)?raw:objects(raw)).filter(x=>x&&typeof x==='object').map(x=>{
-  const date=String(x.localTradedAt??x.tradeDate??x.date??x.bizdate??x.trdDt??'').replace(/\D/g,'').slice(0,8);
+  const date=String(x.localTradedAt??x.tradeDate??x.date??x.bizdate??x.trdDt??'').replace(/\D/g,'').slice(0,12);
   const close=num(x.closePrice??x.currentPrice??x.nowPrice??x.tradePrice??x.close??x.stckClpr);
   const open=num(x.openPrice??x.open??x.stckOprc??x.openingPrice)??close;
   const high=num(x.highPrice??x.high??x.stckHgpr??x.highestPrice)??Math.max(open,close);
@@ -432,21 +432,44 @@ function aggregateCandles(rows,period){
  const buckets=new Map();for(const d of rows){let key=period==='year'?d.date.slice(0,4):period==='month'?d.date.slice(0,6):(()=>{const dt=new Date(Number(d.date.slice(0,4)),Number(d.date.slice(4,6))-1,Number(d.date.slice(6,8)));const start=new Date(dt);start.setDate(start.getDate()-((start.getDay()+6)%7));return start.getFullYear()+String(start.getMonth()+1).padStart(2,'0')+String(start.getDate()).padStart(2,'0')})();if(!buckets.has(key))buckets.set(key,{date:d.date,open:d.open,high:d.high,low:d.low,close:d.close});else{const b=buckets.get(key);b.high=Math.max(b.high,d.high);b.low=Math.min(b.low,d.low);b.close=d.close;b.date=d.date}}
  return [...buckets.values()].sort((a,b)=>a.date.localeCompare(b.date)).slice(-(period==='week'?120:period==='month'?120:80));
 }
+function parseMinuteRows(raw){
+ let rows=Array.isArray(raw)?raw:null;
+ if(!rows&&typeof raw==='string'){try{rows=JSON.parse(raw)}catch{}}
+ if(!rows){for(const o of objects(raw)){for(const v of Object.values(o)){if(Array.isArray(v)&&v.length&&Array.isArray(v[0])){rows=v;break}}if(rows)break}}
+ if(!Array.isArray(rows))return [];
+ const out=[];
+ for(const r of rows){
+  if(Array.isArray(r)){
+   const stamp=String(r[0]??'').replace(/\D/g,'');if(stamp.length<12)continue;
+   const open=num(r[1]),high=num(r[2]),low=num(r[3]),close=num(r[4]);
+   if([open,high,low,close].every(v=>v!==null))out.push({date:stamp.slice(0,12),open,high,low,close});
+  }else if(r&&typeof r==='object'){
+   const stamp=String(r.localTradedAt??r.localDateTime??r.tradeDateTime??r.dateTime??r.date??'').replace(/\D/g,'');
+   if(stamp.length<12)continue;
+   const close=num(r.closePrice??r.currentPrice??r.close??r.tradePrice),open=num(r.openPrice??r.open)??close,high=num(r.highPrice??r.high)??Math.max(open,close),low=num(r.lowPrice??r.low)??Math.min(open,close);
+   if([open,high,low,close].every(v=>v!==null))out.push({date:stamp.slice(0,12),open,high,low,close});
+  }
+ }
+ const byTime=new Map(out.map(x=>[x.date,x]));return [...byTime.values()].sort((a,b)=>a.date.localeCompare(b.date));
+}
+function aggregateMinuteRows(rows,interval){
+ const buckets=new Map();for(const r of rows){const dt=String(r.date);const minute=Number(dt.slice(10,12));const rounded=Math.floor(minute/interval)*interval;const key=dt.slice(0,10)+String(rounded).padStart(2,'0');if(!buckets.has(key))buckets.set(key,{date:key,open:r.open,high:r.high,low:r.low,close:r.close});else{const b=buckets.get(key);b.high=Math.max(b.high,r.high);b.low=Math.min(b.low,r.low);b.close=r.close}}
+ return [...buckets.values()].sort((a,b)=>a.date.localeCompare(b.date)).slice(-120);
+}
 async function loadMinuteChart(interval){
- if(!current.code)return; minuteChartInterval=Number(interval)||1; const code=current.code,key=code+'-minute-'+minuteChartInterval,request=++dailyChartRequest,host=$('dailyChart');
- dailyChartPeriod='minute'; document.querySelectorAll('.daily-chart-tabs button').forEach(b=>{b.classList.remove('active');b.setAttribute('aria-selected','false')});
+ if(!current.code)return;minuteChartInterval=Number(interval)||1;const code=current.code,key=code+'-minute-'+minuteChartInterval,request=++dailyChartRequest,host=$('dailyChart');
+ dailyChartPeriod='minute';document.querySelectorAll('.daily-chart-tabs button').forEach(b=>{b.classList.remove('active');b.setAttribute('aria-selected','false')});
  $('dailyChartTitle').textContent=`${minuteChartInterval}분봉 차트`;
  if(dailyChartCache.has(key)){renderDailyChart(dailyChartCache.get(key),'minute');return}
- host.innerHTML='<div class="chart-empty">분봉 차트 데이터를 불러오는 중…</div>'; $('dailyChartRange').textContent='조회 중…';
- const urls=[
-  `${API}/api/stock/${code}/price?pageSize=120&page=1&timeframe=minute&interval=${minuteChartInterval}`,
-  `${API}/api/stock/${code}/price?pageSize=120&page=1&period=minute&interval=${minuteChartInterval}`,
-  `${API}/api/stock/${code}/price?pageSize=120&page=1&chartType=minute&unit=${minuteChartInterval}`
- ];
- try{let raw=null,lastError;for(const url of urls){try{const candidate=await first([url]);const rows=normalizeCandleRows(candidate);if(rows.length>1){raw=rows;break}}catch(e){lastError=e}}
-  if(!raw)throw lastError||Error('분봉 데이터를 제공하지 않는 응답입니다');
-  const candles=raw.slice(-120);dailyChartCache.set(key,candles);if(request===dailyChartRequest&&code===current.code)renderDailyChart(candles,'minute');
- }catch(e){if(request===dailyChartRequest){host.innerHTML=`<div class="chart-empty">${minuteChartInterval}분봉 데이터를 불러오지 못했습니다. 네이버 API에서 해당 분봉을 제공하는지 확인해 주세요.</div>`;$('dailyChartRange').textContent='조회 실패'}}
+ host.innerHTML='<div class="chart-empty">분봉 차트 데이터를 불러오는 중…</div>';$('dailyChartRange').textContent='조회 중…';
+ try{
+  // 네이버의 분 단위 원시 차트를 요청하고, 3/5/10/15/30/60분봉은 1분봉을 로컬에서 집계한다.
+  const url=`${API}/front-api/v1/external/chart/domestic/info?symbol=${code}&requestType=0&timeframe=minute&count=500`;
+  const raw=await first([url]);const rows=parseMinuteRows(raw);
+  if(rows.length<2)throw Error('네이버 분봉 원시 데이터가 비어 있습니다');
+  const candles=aggregateMinuteRows(rows,minuteChartInterval);if(!candles.length)throw Error('분봉 집계 결과가 비어 있습니다');
+  dailyChartCache.set(key,candles);if(request===dailyChartRequest&&code===current.code)renderDailyChart(candles,'minute');
+ }catch(e){if(request===dailyChartRequest){host.innerHTML=`<div class="chart-empty">${minuteChartInterval}분봉 데이터를 불러오지 못했습니다. 네이버 분봉 API 응답을 확인해 주세요.</div>`;$('dailyChartRange').textContent='조회 실패'}}
 }
 async function loadChartPeriod(period){
  if(!current.code)return;
