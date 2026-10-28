@@ -18,6 +18,25 @@ function fmt(v,u=''){const n=num(v);return n===null?blank:`${n.toLocaleString('k
 function objects(root,out=[],seen=new Set()){if(!root||typeof root!=='object'||seen.has(root))return out;seen.add(root);if(Array.isArray(root)){root.forEach(x=>objects(x,out,seen))}else{out.push(root);Object.values(root).forEach(v=>{if(v&&typeof v==='object')objects(v,out,seen)})}return out}
 async function getJson(url){const urls=[`${PROXY_BASE}?url=${encodeURIComponent(url)}`,url,`https://corsproxy.io/?url=${encodeURIComponent(url)}`,`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`];let err;for(const u of urls){try{const r=await fetch(u,{cache:'no-store',headers:{Accept:'application/json'}});if(!r.ok)throw Error(`HTTP ${r.status}`);let t=await r.text();let d=JSON.parse(t);if(d?.error)throw Error(d.error);return d}catch(e){err=e}}throw Error(err?.message||'API 요청 실패')}
 async function first(urls){let err;for(const u of urls){try{return await getJson(u)}catch(e){err=e}}throw err||Error('조회 실패')}
+async function loadDailyPrices120(code){
+ const dateOf=item=>String(item?.localTradedAt??item?.tradeDate??item?.date??item?.bizdate??item?.trdDt??'').replace(/\D/g,'').slice(0,8);
+ const hasPrice=item=>item&&typeof item==='object'&&dateOf(item)&&num(item.closePrice??item.currentPrice??item.nowPrice??item.tradePrice??item.close??item.stckClpr)!==null;
+ const list=raw=>{if(Array.isArray(raw))return raw.filter(hasPrice);return objects(raw).filter(hasPrice)};
+ const fetchPage=async(page,size=60)=>first([`${API}/api/stock/${code}/price?pageSize=${size}&page=${page}`]);
+ const byDate=new Map();
+ // 먼저 120개 단일 응답을 시도하되, 해당 pageSize를 지원하지 않아도 일봉 표시가 실패하지 않도록 한다.
+ try{for(const item of list(await fetchPage(1,120)))byDate.set(dateOf(item),item)}catch{}
+ // 단일 요청이 120개를 주지 않으면 기존에 사용하던 60개 페이지 방식으로 보충한다.
+ if(byDate.size<120){
+   const p1=byDate.size?null:await fetchPage(1,60).catch(()=>null);
+   if(p1!==null)for(const item of list(p1))byDate.set(dateOf(item),item);
+   if(byDate.size<120){const p2=await fetchPage(2,60).catch(()=>null);if(p2!==null)for(const item of list(p2))byDate.set(dateOf(item),item)}
+ }
+ const merged=[...byDate.values()].sort((a,b)=>dateOf(a).localeCompare(dateOf(b)));
+ // 일부 Naver 응답은 2페이지를 제공하지 않을 수 있으므로, 확보된 데이터가 있으면 차트를 표시한다.
+ if(!merged.length)throw Error('일봉 API 응답에서 가격 데이터가 확인되지 않습니다.');
+ return merged.slice(-120);
+}
 async function getText(url){const urls=[`${PROXY_BASE}?url=${encodeURIComponent(url)}`,url,`https://corsproxy.io/?url=${encodeURIComponent(url)}`,`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`];let err;for(const u of urls){try{const r=await fetch(u,{cache:'no-store',headers:{Accept:'text/html,application/json,*/*'}});if(!r.ok)throw Error(`HTTP ${r.status}`);let t=await r.text();if(!t||t.length<30)throw Error('빈 응답');try{const j=JSON.parse(t);if(typeof j.contents==='string'&&j.contents.length>20)t=j.contents;else if(typeof j.content==='string'&&j.content.length>20)t=j.content;else if(typeof j.body==='string'&&j.body.length>20)t=j.body;else if(typeof j.data==='string'&&j.data.length>20)t=j.data;}catch{}if(!t||t.length<30)throw Error('빈 응답');return t}catch(e){err=e}}throw err||Error('텍스트 조회 실패')}
 function annualProfitFromLegacyHtml(html,year=new Date().getFullYear()-1){try{const doc=new DOMParser().parseFromString(html,'text/html');for(const table of doc.querySelectorAll('table')){const rows=[...table.querySelectorAll('tr')].map(tr=>[...tr.querySelectorAll('th,td')].map(c=>(c.innerText||c.textContent||'').replace(/\s+/g,' ').trim()));let yearIndex=-1;for(const cells of rows){const idx=cells.findIndex(v=>new RegExp(`(?:^|\\D)${year}(?:\\D|$)`).test(v));if(idx>=0){yearIndex=idx;break}}if(yearIndex<0)continue;for(const cells of rows){const label=(cells[0]||'').replace(/\s/g,'');if(/영업이익/.test(label)&&!/영업이익률|증감|성장|증가율|전년비|증가액|변동|마진/.test(label)&&cells.length>yearIndex){const value=financeNum(cells[yearIndex]);if(value!==null)return value}}}}catch{}return null}
 async function loadAnnualData(code){let primaryError;try{return await first([`${API}/api/stock/${code}/finance/annual`])}catch(e){primaryError=e}const legacy=`${API}/api/html/item/financialInfo.nhn?type=annual&code=${encodeURIComponent(code)}`;let legacyError;try{const html=await getText(legacy);const profit=annualProfitFromLegacyHtml(html);if(profit!==null)return{annualProfitFallback:profit,annualFallbackSource:'legacy-html'};legacyError=Error('대체 경로 응답은 받았지만 영업이익 표를 찾지 못함')}catch(e){legacyError=e}throw Error(`연간 API: ${primaryError?.message||'실패'} / 대체 경로: ${legacyError?.message||'실패'}`)}
@@ -405,7 +424,7 @@ first([`${API}/api/stock/${code}/basic`]),
 first([`${API}/api/stock/${code}/integration`]),
 first([`${API}/api/stock/${code}/finance/quarter`]),
 loadAnnualData(code),
-first([`${API}/api/stock/${code}/price?pageSize=60&page=1`]),
+loadDailyPrices120(code),
 first([`${DESKTOP}/api/domestic/detail/${code}/consensus`]),
 flowKrxPromise,
 flowNxtPromise,
